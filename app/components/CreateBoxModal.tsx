@@ -1,4 +1,3 @@
-// CreateBoxModal.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -30,9 +29,9 @@ const predefinedColors = [
   "#9B59B6",
   "#E67E22",
   "#1ABC9C",
-  "#FFFFFF", // Added white
-  "#000000", // Added black
-  "#FFC300", // Added additional colors as needed
+  "#FFFFFF",
+  "#000000",
+  "#FFC300",
 ];
 
 const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
@@ -45,27 +44,40 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
   const [newBoxText, setNewBoxText] = useState("");
   const [selectedColor, setSelectedColor] = useState<string>(predefinedColors[0]);
   const [image, setImage] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
 
   const pickImage = async () => {
-    // Request permission to access media library
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
     if (permissionResult.granted === false) {
       alert("Permission to access camera roll is required!");
       return;
     }
-
-    // Launch image picker
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1,
     });
-
     if (!result.canceled) {
-        console.log(result);
       setImage(result.assets[0].uri);
+    }
+  };
+
+  const generateAIImage = async () => {
+    // Placeholder API call for AI image generation
+    try {
+      const response = await fetch("https://example.com/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: "Generate an image" }),
+      });
+      const result = await response.json();
+      if (result.imageUrl) {
+        setImage(result.imageUrl);
+      }
+    } catch (error) {
+      console.error("AI image generation failed:", error);
+      alert("Failed to generate image. Please try again.");
     }
   };
 
@@ -110,16 +122,18 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
             </View>
           )}
 
-          {/* Add New Box Section */}
+          
+
+          
+
+          {/* Add Box Section */}
           <View style={styles.addBoxContainer}>
-            <Text style={styles.sectionTitle}>Add New Box</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter box text"
               value={newBoxText}
               onChangeText={setNewBoxText}
             />
-
             <Text style={styles.label}>Select Color:</Text>
             <View style={styles.colorSelector}>
               {predefinedColors.map((color) => (
@@ -134,21 +148,47 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
                 />
               ))}
             </View>
-
-            <View style={styles.imageContainer}>
-              <Text style={styles.label}>Selected Image:</Text>
+          </View>
+          {/* Tab Selector */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "upload" && styles.activeTab]}
+              onPress={() => setActiveTab("upload")}
+            >
+              <Text style={styles.tabText}>Upload Picture</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "ai" && styles.activeTab]}
+              onPress={() => setActiveTab("ai")}
+            >
+              <Text style={styles.tabText}>Create Pictures</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Tab Content */}
+          {activeTab === "upload" ? (
+            <View style={styles.tabContent}>
+              <Button title="Pick an image" onPress={pickImage} />
               {image ? (
                 <Image source={{ uri: image }} style={styles.imagePreview} />
               ) : (
                 <Text style={styles.noImageText}>No image selected</Text>
               )}
-              <Button title="Pick an image" onPress={pickImage} />
             </View>
+          ) : (
+            <View style={styles.tabContent}>
+              <Button title={"Create pictures for " + newBoxText} onPress={generateAIImage} />
+              {image ? (
+                <Image source={{ uri: image }} style={styles.imagePreview} />
+              ) : (
+                <Text style={styles.noImageText}>No images</Text>
+              )}
+            </View>
+          )}
 
-            <View style={styles.modalButtons}>
-              <Button title="Cancel" onPress={onClose} />
-              <Button title="Add Box" onPress={handleAdd} />
-            </View>
+          {/* Buttons */}
+          <View style={styles.modalButtons}>
+            <Button title="Cancel" onPress={onClose} />
+            <Button title="Add Box" onPress={handleAdd} />
           </View>
         </View>
       </View>
@@ -177,7 +217,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "bold",
     marginBottom: 10,
   },
@@ -199,19 +239,51 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
   },
+  tabContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginVertical: 10,
+  },
+  tab: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 5,
+    alignItems: "center",
+    backgroundColor: "#ddd",
+  },
+  activeTab: {
+    backgroundColor: "#bbb",
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  tabContent: {
+    marginVertical: 10,
+    alignItems: "center",
+  },
+  imagePreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  noImageText: {
+    color: "#888",
+    marginTop: 10,
+  },
   addBoxContainer: {
-    marginBottom: 20,
+    marginVertical: 10,
   },
   input: {
     borderWidth: 1,
     borderColor: "#ddd",
     padding: 10,
-    marginVertical: 5,
     borderRadius: 4,
+    marginBottom: 10,
   },
   label: {
     fontSize: 14,
-    marginTop: 10,
     marginBottom: 5,
   },
   colorSelector: {
@@ -230,20 +302,6 @@ const styles = StyleSheet.create({
   },
   selectedColor: {
     borderColor: "#000",
-  },
-  imageContainer: {
-    marginVertical: 10,
-    alignItems: "center",
-  },
-  imagePreview: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  noImageText: {
-    color: "#888",
-    marginBottom: 10,
   },
   modalButtons: {
     flexDirection: "row",
