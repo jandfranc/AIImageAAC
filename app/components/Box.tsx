@@ -5,19 +5,21 @@ import {
   TouchableOpacity,
   Animated,
   View,
+  Image,
 } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons"; // For the "X" icon
 
 export enum BoxType {
-    TalkBox,
-    OptionBox
+  TalkBox,
+  OptionBox,
 }
 
 export interface BoxInfo {
-    id: number;
-    type: BoxType;
-    text: string;
-    image: string;
-    color: string;
+  id: number;
+  type: BoxType;
+  text: string;
+  image: string;
+  color: string;
 }
 
 interface BoxProps {
@@ -27,89 +29,109 @@ interface BoxProps {
   selected: boolean;
   boxInfo: BoxInfo;
   onSelect: (id: number | null) => void;
+  onLongSelect: (id: number) => void
+  onDelete: (id: number) => void; // Callback for delete
 }
 
-const Box: React.FC<BoxProps> = ({ id, size, margin, selected, onSelect, boxInfo }) => {
-  const animation = useRef(new Animated.Value(0)).current;
-  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-
-  useEffect(() => {
-    if (selected) {
-      // Start rotational shaking animation
-      animationRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(animation, {
-            toValue: 1,
-            duration: 200, // Duration for half rotation
-            useNativeDriver: false, // Must be false for web
-          }),
-          Animated.timing(animation, {
-            toValue: -1,
-            duration: 400, // Duration for full rotation back
-            useNativeDriver: false,
-          }),
-          Animated.timing(animation, {
-            toValue: 0,
-            duration: 200, // Return to initial position
-            useNativeDriver: false,
-          }),
-        ])
-      );
-      animationRef.current.start();
-    } else {
-      // Stop the animation
-      if (animationRef.current) {
-        animationRef.current.stop();
-        animationRef.current = null;
-      }
-      animation.setValue(0);
-    }
-  }, [selected]);
-
-  const rotateAnimation = {
-    transform: [
-      {
-        rotate: animation.interpolate({
-          inputRange: [-1, 0, 1],
-          outputRange: ["-5deg", "0deg", "5deg"],
-        }),
-      },
-    ],
-  };
-
-  return (
-    <TouchableOpacity
-      style={[
-        {
-          width: size,
-          height: size,
-          margin,
-        },
-      ]}
-      onLongPress={() => onSelect(id)}
-      onPress={() => {
-        if (selected) {
-          // Deselect on press
-          onSelect(null);
-        } else {
-          onSelect(id);
+const Box: React.FC<BoxProps> = ({
+    id,
+    size,
+    margin,
+    selected,
+    onSelect,
+    onLongSelect,
+    onDelete,
+    boxInfo,
+  }) => {
+    const animation = useRef(new Animated.Value(0)).current;
+    const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  
+    useEffect(() => {
+      if (selected) {
+        // Start rotational shaking animation
+        animationRef.current = Animated.loop(
+          Animated.sequence([
+            Animated.timing(animation, {
+              toValue: 1,
+              duration: 200, // Duration for half rotation
+              useNativeDriver: false, // Must be false for web
+            }),
+            Animated.timing(animation, {
+              toValue: -1,
+              duration: 400, // Duration for full rotation back
+              useNativeDriver: false,
+            }),
+            Animated.timing(animation, {
+              toValue: 0,
+              duration: 200, // Return to initial position
+              useNativeDriver: false,
+            }),
+          ])
+        );
+        animationRef.current.start();
+      } else {
+        // Stop the animation
+        if (animationRef.current) {
+          animationRef.current.stop();
+          animationRef.current = null;
         }
-      }}
-      delayLongPress={1000} // Adjust as needed
-    >
-      <Animated.View
+        animation.setValue(0);
+      }
+    }, [selected]);
+  
+    const rotateAnimation = {
+      transform: [
+        {
+          rotate: animation.interpolate({
+            inputRange: [-1, 0, 1],
+            outputRange: ["-5deg", "0deg", "5deg"],
+          }),
+        },
+      ],
+    };
+  
+    return (
+      <TouchableOpacity
         style={[
-          styles.box,
-          { backgroundColor: boxInfo.color },
-          selected && styles.selectedBox,
-          selected ? rotateAnimation : undefined,
+          {
+            width: size,
+            height: size,
+            margin,
+          },
         ]}
+        onLongPress={() => onLongSelect(id)}
+        onPress={() => {
+          if (selected) {
+            onSelect(null);
+          } else {
+            onSelect(id);
+          }
+        }}
+        delayLongPress={1000} // Adjust as needed
       >
-        <Text style={styles.boxText}>{boxInfo.text}</Text>
-      </Animated.View>
-    </TouchableOpacity>
-  );
-};
+        <Animated.View
+          style={[
+            styles.box,
+            { backgroundColor: boxInfo.color },
+            selected && styles.selectedBox,
+            selected ? rotateAnimation : undefined,
+          ]}
+        >
+          {boxInfo.image && <Image source={{ uri: boxInfo.image }} style={styles.boxImage} />}
+          <Text style={[styles.boxText, { fontSize: size * 0.25 }]}>{boxInfo.text}</Text>
+        </Animated.View>
+        {selected && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => onDelete(id)} // Call the delete callback
+          >
+            <MaterialIcons name="close" size={64} color="white" />
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    );
+  };
+  
 
 const styles = StyleSheet.create({
   box: {
@@ -117,6 +139,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 4,
+    overflow: "hidden",
+    position: "relative", // Required for absolute positioning of the text
   },
   selectedBox: {
     borderColor: "blue",
@@ -124,8 +148,33 @@ const styles = StyleSheet.create({
   },
   boxText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 64, // Adjusted for better readability over images
     fontWeight: "bold",
+    textAlign: "center",
+    position: "absolute", // Position text over the image
+    zIndex: 1, // Ensure text is above the image
+    textShadowColor: "#000", // Black shadow for the border effect
+    textShadowOffset: { width: 10, height: 10 }, // Top-left shadow
+    textShadowRadius: 10,
+  },
+  boxImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+    position: "absolute", // Make sure the image is the background
+    top: 0,
+    left: 0,
+  },
+  deleteButton: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 50,
+    height: 50,
+    backgroundColor: "red",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 
