@@ -1,5 +1,3 @@
-// src/screens/HomeScreen.tsx
-
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -8,9 +6,6 @@ import {
   StyleSheet,
   useWindowDimensions,
   ScrollView,
-  Alert,
-  ToastAndroid,
-  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import WordBox from "../components/WordBox";
@@ -105,7 +100,6 @@ export default function HomeScreen() {
     boxes.slice(pageIndex * boxesPerPage, (pageIndex + 1) * boxesPerPage)
   );
 
-  // Load boxes and settings from AsyncStorage on mount
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -113,9 +107,16 @@ export default function HomeScreen() {
         if (savedBoxes) setBoxes(JSON.parse(savedBoxes));
 
         const savedSettings = await AsyncStorage.getItem("@app_settings");
-        if (savedSettings) setAppSettings(JSON.parse(savedSettings));
+        if (savedSettings) {
+          setAppSettings(JSON.parse(savedSettings))
+        }
+        else {
+          setAppSettings(defaultSettings);
+          await AsyncStorage.setItem("@app_settings", JSON.stringify(defaultSettings));
+        }
+        ;
+
       } catch (error) {
-        console.error("Failed to load data:", error);
       }
     };
     loadData();

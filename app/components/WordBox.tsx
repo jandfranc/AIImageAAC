@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,8 +9,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons"; // For the "X" icon
 import { BoxInfo } from "../types";
-
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface BoxProps {
   id: number;
@@ -19,119 +18,136 @@ interface BoxProps {
   selected: boolean;
   boxInfo: BoxInfo;
   onSelect: (id: number | null) => void;
-  onLongSelect: (id: number) => void
+  onLongSelect: (id: number) => void;
   onDelete: (id: number) => void;
   onEdit: (id: number) => void;
 }
 
 const WordBox: React.FC<BoxProps> = ({
-    id,
-    size,
-    margin,
-    selected,
-    onSelect,
-    onLongSelect,
-    onDelete,
-    onEdit,
-    boxInfo,
-  }) => {
-    const animation = useRef(new Animated.Value(0)).current;
-    const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-  
-    useEffect(() => {
-      if (selected) {
-        // Start rotational shaking animation
-        animationRef.current = Animated.loop(
-          Animated.sequence([
-            Animated.timing(animation, {
-              toValue: 1,
-              duration: 200, // Duration for half rotation
-              useNativeDriver: false, // Must be false for web
-            }),
-            Animated.timing(animation, {
-              toValue: -1,
-              duration: 400, // Duration for full rotation back
-              useNativeDriver: false,
-            }),
-            Animated.timing(animation, {
-              toValue: 0,
-              duration: 200, // Return to initial position
-              useNativeDriver: false,
-            }),
-          ])
-        );
-        animationRef.current.start();
-      } else {
-        // Stop the animation
-        if (animationRef.current) {
-          animationRef.current.stop();
-          animationRef.current = null;
+  id,
+  size,
+  margin,
+  selected,
+  onSelect,
+  onLongSelect,
+  onDelete,
+  onEdit,
+  boxInfo,
+}) => {
+  const animation = useRef(new Animated.Value(0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const [longPressDuration, setLongPressDuration] = useState(1000); // Default to 1000ms
+
+  useEffect(() => {
+    const loadLongPressDuration = async () => {
+      try {
+        const savedSettings = await AsyncStorage.getItem("@app_settings");
+        const settings = savedSettings ? JSON.parse(savedSettings) : {};
+        const savedDuration = settings.editLongPressDuration;
+
+        if (savedDuration) {
+          setLongPressDuration(parseInt(savedDuration, 10));
         }
-        animation.setValue(0);
+      } catch (error) {
+        console.error("Failed to load long press duration:", error);
       }
-    }, [selected]);
-  
-    const rotateAnimation = {
-      transform: [
-        {
-          rotate: animation.interpolate({
-            inputRange: [-1, 0, 1],
-            outputRange: ["-5deg", "0deg", "5deg"],
-          }),
-        },
-      ],
     };
-  
-    return (
-      <TouchableOpacity
-        style={[
-          {
-            width: size,
-            height: size,
-            margin,
-          },
-        ]}
-        onLongPress={() => onLongSelect(id)}
-        onPress={() => {
-          if (selected) {
-            onSelect(id);
-          } else {
-            onSelect(id);
-          }
-        }}
-        delayLongPress={1000} // Adjust as needed
-      >
-        <Animated.View
-          style={[
-            styles.box,
-            { backgroundColor: boxInfo.color },
-            selected && styles.selectedBox,
-            selected ? rotateAnimation : undefined,
-          ]}
-        >
-          {<Image source={{ uri: boxInfo.image }} style={styles.boxImage} />}
-          <Text style={[styles.boxText, { fontSize: size * 0.25 }]}>{boxInfo.text}</Text>
-        </Animated.View>
-        {selected && (
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => onDelete(id)} // Call the delete callback
-          >
-            <MaterialIcons name="close" size={64} color="white" />
-          </TouchableOpacity>
-        )}
-        {selected && (
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => onEdit(id)} // Call the delete callback
-          >
-            <MaterialIcons name="edit" size={64} color="white" />
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
-    );
+    loadLongPressDuration();
+  }, []);
+
+  useEffect(() => {
+    if (selected) {
+      // Start rotational shaking animation
+      animationRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(animation, {
+            toValue: 1,
+            duration: 200, // Duration for half rotation
+            useNativeDriver: false, // Must be false for web
+          }),
+          Animated.timing(animation, {
+            toValue: -1,
+            duration: 400, // Duration for full rotation back
+            useNativeDriver: false,
+          }),
+          Animated.timing(animation, {
+            toValue: 0,
+            duration: 200, // Return to initial position
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      animationRef.current.start();
+    } else {
+      // Stop the animation
+      if (animationRef.current) {
+        animationRef.current.stop();
+        animationRef.current = null;
+      }
+      animation.setValue(0);
+    }
+  }, [selected]);
+
+  const rotateAnimation = {
+    transform: [
+      {
+        rotate: animation.interpolate({
+          inputRange: [-1, 0, 1],
+          outputRange: ["-5deg", "0deg", "5deg"],
+        }),
+      },
+    ],
   };
-  
+
+  return (
+    <TouchableOpacity
+      style={[
+        {
+          width: size,
+          height: size,
+          margin,
+        },
+      ]}
+      onLongPress={() => onLongSelect(id)}
+      onPress={() => {
+        if (selected) {
+          onSelect(id);
+        } else {
+          onSelect(id);
+        }
+      }}
+      delayLongPress={longPressDuration} // Use the loaded duration
+    >
+      <Animated.View
+        style={[
+          styles.box,
+          { backgroundColor: boxInfo.color },
+          selected && styles.selectedBox,
+          selected ? rotateAnimation : undefined,
+        ]}
+      >
+        {<Image source={{ uri: boxInfo.image }} style={styles.boxImage} />}
+        <Text style={[styles.boxText, { fontSize: size * 0.25 }]}>{boxInfo.text}</Text>
+      </Animated.View>
+      {selected && (
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => onDelete(id)} // Call the delete callback
+        >
+          <MaterialIcons name="close" size={64} color="white" />
+        </TouchableOpacity>
+      )}
+      {selected && (
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => onEdit(id)} // Call the delete callback
+        >
+          <MaterialIcons name="edit" size={64} color="white" />
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+};
 
 const styles = StyleSheet.create({
   box: {

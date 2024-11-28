@@ -15,4 +15,5 @@ export interface BoxInfo {
 export interface AppSettings {
     boxMargin: number;
     numHorizontalBoxes: number;
+    editLongPressDuration: number;
 }

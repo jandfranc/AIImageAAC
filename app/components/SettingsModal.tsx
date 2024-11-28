@@ -32,6 +32,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [numHorizontalBoxes, setNumHorizontalBoxes] = useState<number>(
     currentSettings.numHorizontalBoxes
   );
+  const [editLongPressDuration, setEditLongPressDuration] = useState<number>(
+    currentSettings.editLongPressDuration
+  );
   const [isValid, setIsValid] = useState<boolean>(true);
 
   // Update state when currentSettings change or modal is opened
@@ -46,6 +49,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     const validBoxMargin = boxMargin >= 0 && boxMargin <= 50;
     const validNumBoxes = numHorizontalBoxes >= 1 && numHorizontalBoxes <= 20;
+    const validEditLongPressDuration = editLongPressDuration >= 300 && editLongPressDuration <= 2000;
     setIsValid(validBoxMargin && validNumBoxes);
   }, [boxMargin, numHorizontalBoxes]);
 
@@ -62,6 +66,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const newSettings: AppSettings = {
       boxMargin: boxMargin,
       numHorizontalBoxes: numHorizontalBoxes,
+      editLongPressDuration: editLongPressDuration,
     };
     onSave(newSettings);
     onClose();
@@ -85,6 +90,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     // Reset settings
     setBoxMargin(defaultSettings.boxMargin);
     setNumHorizontalBoxes(defaultSettings.numHorizontalBoxes);
+    setEditLongPressDuration(defaultSettings.editLongPressDuration);
 
     // Optionally, save the reset settings immediately
     onSave(defaultSettings);
@@ -128,6 +134,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 step={1}
                 value={numHorizontalBoxes}
                 onValueChange={(value) => setNumHorizontalBoxes(value)}
+              />
+            </View>
+
+            {/* Edit Long Press Duration Setting */}
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>
+                Edit Long Press Duration: {editLongPressDuration}ms
+              </Text>
+              <Slider
+                style={{ width: "100%", height: 40 }}
+                minimumValue={300}
+                maximumValue={2000}
+                step={100}
+                value={editLongPressDuration}
+                onValueChange={(value) => setEditLongPressDuration(value)}
               />
             </View>
 
