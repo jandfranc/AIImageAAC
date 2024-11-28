@@ -11,3 +11,8 @@ export interface BoxInfo {
     image: string;
     color: string;
 }
+
+export interface AppSettings {
+    boxMargin: number;
+    numHorizontalBoxes: number;
+}

@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { BoxInfo } from "../types";
-
+import Colors from "../design/Colors";
 interface CreateBoxModalProps {
   isVisible: boolean;
   onClose: () => void;
@@ -20,19 +20,6 @@ interface CreateBoxModalProps {
   deletedBoxes: BoxInfo[];
   onReAdd: (box: BoxInfo) => void;
 }
-
-const predefinedColors = [
-  "#FF5733",
-  "#33FF57",
-  "#3357FF",
-  "#F1C40F",
-  "#9B59B6",
-  "#E67E22",
-  "#1ABC9C",
-  "#FFFFFF",
-  "#000000",
-  "#FFC300",
-];
 
 const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
     isVisible,
@@ -42,7 +29,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
     onReAdd,
   }) => {
     const [newBoxText, setNewBoxText] = useState("");
-    const [selectedColor, setSelectedColor] = useState<string>(predefinedColors[0]);
+    const [selectedColor, setSelectedColor] = useState<string>(Colors.Red);
     const [images, setImages] = useState<string[]>([]);
     const [selectedImage, setSelectedImage] = useState<string>("");
     const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
@@ -85,7 +72,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
     const handleAdd = () => {
       onAdd(newBoxText.trim() || "New Box", selectedColor, selectedImage);
       setNewBoxText("");
-      setSelectedColor(predefinedColors[0]);
+      setSelectedColor(Colors.Red);
       setImages([]);
       setSelectedImage("");
       onClose();
@@ -132,7 +119,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
               />
               <Text style={styles.label}>Select Color:</Text>
               <View style={styles.colorSelector}>
-                {predefinedColors.map((color) => (
+              {Object.values(Colors).map((color: string) => (
                   <TouchableOpacity
                     key={color}
                     style={[
