@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, useWindowDimensions, ScrollView, TextInput, Button } from "react-native";
-import Box, { BoxType, BoxInfo } from "../components/Box";
+import WordBox from "../components/WordBox";
 import AddBox from "../components/AddBox";
 import defaultBoxes from "../data/defaultBoxes";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BoxInfo, BoxType } from "../types";
+import GenericBox from "../components/GenericBox";
+import EditBoxModal from "../components/EditBoxModal";
 
 const numHorizontalBoxes = 10; // Number of boxes per row
 const boxMargin = 8; // Space between boxes
@@ -17,9 +20,36 @@ export default function HomeScreen() {
   const [selectedBoxId, setSelectedBoxId] = useState<number | null>(null);
   const [topText, setTopText] = useState<string>("");
 
+  const [isEditModalVisible, setEditModalVisible] = useState(false);
+  const [editingBox, setEditingBox] = useState<BoxInfo | null>(null);
+
+  const handleEdit = (id: number) => {
+    const boxToEdit = boxes.find((box) => box.id === id);
+    if (boxToEdit) {
+      setEditingBox(boxToEdit);
+      setEditModalVisible(true);
+    }
+  };
+
+  const handleEditSave = (text: string, color: string, image: string) => {
+    if (editingBox) {
+      const updatedBox = { ...editingBox, text, color, image };
+      setBoxes((prevBoxes) =>
+        prevBoxes.map((box) => (box.id === updatedBox.id ? updatedBox : box))
+      );
+      setEditModalVisible(false);
+    }
+  };
+  
+
+
   const deletedBoxes = defaultBoxes.filter(
     (defaultBox) => !boxes.some((box) => box.id === defaultBox.id)
   );
+
+  const handleResetBoxes = () => {
+    setBoxes(defaultBoxes);
+  };
 
   // Adjust available height for boxes
   const adjustedHeight = height - topTextHeight - buttonContainerHeight - boxMargin * 3;
@@ -98,11 +128,16 @@ export default function HomeScreen() {
   };
 
   const handleSelect = (id: number | null) => {
+    console.log(selectedBoxId, id);
     if (selectedBoxId !== null && id !== null) {
       swapBoxes(selectedBoxId, id);
       setSelectedBoxId(null);
       return;
     }
+    if (selectedBoxId === id) {
+      setSelectedBoxId(null);
+      return
+    } 
     setTopText(topText + " " + boxes.find((box) => box.id === id)?.text || "");
   };
 
@@ -161,10 +196,11 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContainer}
         style={{ flex: 1 }}
       >
+        
         {pages.map((pageBoxes, pageIndex) => (
           <View key={pageIndex} style={[styles.grid, { width }]}>
             {pageBoxes.map((box) => (
-              <Box
+              <WordBox
                 key={box.id}
                 id={box.id}
                 size={boxSize}
@@ -173,21 +209,37 @@ export default function HomeScreen() {
                 onSelect={handleSelect}
                 onLongSelect={handleLongSelect}
                 onDelete={handleDelete}
+                onEdit={handleEdit} // Pass the edit handler
+
                 boxInfo={box}
               />
             ))}
             {pageIndex === numPages - 1 && (
-              <AddBox
+              <><AddBox
                 boxSize={boxSize}
-                margin={boxMargin}
+                margin={boxMargin / 2}
                 onAdd={handleAddNewBox}
                 deletedBoxes={deletedBoxes}
-                onReAdd={handleReAdd}
-              />
+                onReAdd={handleReAdd} />
+              <GenericBox
+                  boxSize={boxSize}
+                  margin={boxMargin / 2}
+                  onPress={handleResetBoxes}
+                  iconName="refresh"
+                />
+                </>
             )}
           </View>
         ))}
       </ScrollView>
+      {isEditModalVisible && editingBox && (
+        <EditBoxModal
+          isVisible={isEditModalVisible}
+          onClose={() => setEditModalVisible(false)}
+          boxInfo={editingBox}
+          onSave={handleEditSave}
+        />
+      )}
     </View>
   );
 }

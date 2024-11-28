@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Text, StyleSheet, TouchableOpacity } from "react-native";
 import CreateBoxModal from "./CreateBoxModal";
-import { BoxInfo } from "./Box";
+import { BoxInfo } from "../types";
 
 interface AddBoxProps {
   boxSize: number;

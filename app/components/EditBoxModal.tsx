@@ -12,39 +12,28 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { BoxInfo } from "../types";
+import Colors from "../design/Colors";
 
-interface CreateBoxModalProps {
+interface EditBoxModalProps {
   isVisible: boolean;
+  boxInfo: BoxInfo;
   onClose: () => void;
-  onAdd: (text: string, color: string, image: string) => void;
-  deletedBoxes: BoxInfo[];
-  onReAdd: (box: BoxInfo) => void;
+  onSave: (text: string, color: string, image: string) => void;
 }
 
-const predefinedColors = [
-  "#FF5733",
-  "#33FF57",
-  "#3357FF",
-  "#F1C40F",
-  "#9B59B6",
-  "#E67E22",
-  "#1ABC9C",
-  "#FFFFFF",
-  "#000000",
-  "#FFC300",
-];
 
-const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
+
+const CreateBoxModal: React.FC<EditBoxModalProps> = ({
     isVisible,
     onClose,
-    onAdd,
-    deletedBoxes,
-    onReAdd,
+    onSave,
+    boxInfo
+    
   }) => {
-    const [newBoxText, setNewBoxText] = useState("");
-    const [selectedColor, setSelectedColor] = useState<string>(predefinedColors[0]);
+    const [newBoxText, setNewBoxText] = useState(boxInfo.text);
+    const [selectedColor, setSelectedColor] = useState<string>(boxInfo.color);
     const [images, setImages] = useState<string[]>([]);
-    const [selectedImage, setSelectedImage] = useState<string>("");
+    const [selectedImage, setSelectedImage] = useState<string>(boxInfo.image);
     const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
   
     const pickImage = async () => {
@@ -82,10 +71,10 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
       }
     };
   
-    const handleAdd = () => {
-      onAdd(newBoxText.trim() || "New Box", selectedColor, selectedImage);
+    const handleSave = () => {
+      onSave(newBoxText.trim() || "New Box", selectedColor, selectedImage);
       setNewBoxText("");
-      setSelectedColor(predefinedColors[0]);
+      setSelectedColor(Colors.Red);
       setImages([]);
       setSelectedImage("");
       onClose();
@@ -100,26 +89,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-          {deletedBoxes.length > 0 && (
-            <View style={styles.deletedBoxesContainer}>
-              <Text style={styles.sectionTitle}>Click to Re-add Deleted Boxes</Text>
-              <ScrollView
-                horizontal
-                contentContainerStyle={styles.deletedBoxesRow}
-                showsHorizontalScrollIndicator={false}
-              >
-                {deletedBoxes.map((box) => (
-                  <TouchableOpacity
-                    key={box.id}
-                    style={[styles.deletedBoxItem, { backgroundColor: box.color }]}
-                    onPress={() => onReAdd(box)}
-                  >
-                    <Text style={styles.deletedBoxText}>{box.text}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
+          
             <Text style={styles.modalTitle}>Create Box</Text>
   
             {/* Add Box Section */}
@@ -132,7 +102,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
               />
               <Text style={styles.label}>Select Color:</Text>
               <View style={styles.colorSelector}>
-                {predefinedColors.map((color) => (
+                {Object.values(Colors).map((color: string) => (
                   <TouchableOpacity
                     key={color}
                     style={[
@@ -205,7 +175,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
             {/* Buttons */}
             <View style={styles.modalButtons}>
               <Button title="Cancel" onPress={onClose} />
-              <Button title="Add Box" onPress={handleAdd} />
+              <Button title="Save Changes" onPress={handleSave} />
             </View>
           </View>
         </View>

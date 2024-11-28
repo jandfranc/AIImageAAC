@@ -8,19 +8,9 @@ import {
   Image,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons"; // For the "X" icon
+import { BoxInfo } from "../types";
 
-export enum BoxType {
-  TalkBox,
-  OptionBox,
-}
 
-export interface BoxInfo {
-  id: number;
-  type: BoxType;
-  text: string;
-  image: string;
-  color: string;
-}
 
 interface BoxProps {
   id: number;
@@ -30,10 +20,11 @@ interface BoxProps {
   boxInfo: BoxInfo;
   onSelect: (id: number | null) => void;
   onLongSelect: (id: number) => void
-  onDelete: (id: number) => void; // Callback for delete
+  onDelete: (id: number) => void;
+  onEdit: (id: number) => void;
 }
 
-const Box: React.FC<BoxProps> = ({
+const WordBox: React.FC<BoxProps> = ({
     id,
     size,
     margin,
@@ -41,6 +32,7 @@ const Box: React.FC<BoxProps> = ({
     onSelect,
     onLongSelect,
     onDelete,
+    onEdit,
     boxInfo,
   }) => {
     const animation = useRef(new Animated.Value(0)).current;
@@ -102,7 +94,7 @@ const Box: React.FC<BoxProps> = ({
         onLongPress={() => onLongSelect(id)}
         onPress={() => {
           if (selected) {
-            onSelect(null);
+            onSelect(id);
           } else {
             onSelect(id);
           }
@@ -117,7 +109,7 @@ const Box: React.FC<BoxProps> = ({
             selected ? rotateAnimation : undefined,
           ]}
         >
-          {boxInfo.image && <Image source={{ uri: boxInfo.image }} style={styles.boxImage} />}
+          {<Image source={{ uri: boxInfo.image }} style={styles.boxImage} />}
           <Text style={[styles.boxText, { fontSize: size * 0.25 }]}>{boxInfo.text}</Text>
         </Animated.View>
         {selected && (
@@ -126,6 +118,14 @@ const Box: React.FC<BoxProps> = ({
             onPress={() => onDelete(id)} // Call the delete callback
           >
             <MaterialIcons name="close" size={64} color="white" />
+          </TouchableOpacity>
+        )}
+        {selected && (
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => onEdit(id)} // Call the delete callback
+          >
+            <MaterialIcons name="edit" size={64} color="white" />
           </TouchableOpacity>
         )}
       </TouchableOpacity>
@@ -176,6 +176,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  editButton: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    width: 50,
+    height: 50,
+    backgroundColor: "green",
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });
 
-export default Box;
+export default WordBox;
