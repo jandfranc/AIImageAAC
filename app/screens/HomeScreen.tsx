@@ -17,7 +17,8 @@ import { AppSettings, BoxInfo, BoxType } from "../types";
 import { defaultSettings } from "../data/defaultSettings";
 import defaultBoxes from "../data/defaultBoxes";
 import Toast from 'react-native-toast-message';
-
+import ToggleBar from "../components/ToggleBar";
+import BarSettingsModal from "../components/BarSettingsModal";
 
 export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
@@ -36,6 +37,27 @@ export default function HomeScreen() {
 
   // State for app settings
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultSettings);
+
+  // State for toggle buttons
+  const [toggleButtons, setToggleButtons] = useState<{ text: string; audio: string | null }[]>([
+    { text: "Option 1", audio: null },
+    { text: "Option 2", audio: null },
+    { text: "Option 3", audio: null },
+  ]);
+  const [selectedButtonIndex, setSelectedButtonIndex] = useState<number>(0);
+  const [isBarSettingsModalVisible, setBarSettingsModalVisible] = useState(false);
+
+  const handleToggle = (index: number) => {
+    setSelectedButtonIndex(index);
+  };
+
+  const handleOpenBarSettingsModal = () => {
+    setBarSettingsModalVisible(true);
+  };
+
+  const handleCloseBarSettingsModal = () => {
+    setBarSettingsModalVisible(false);
+  };
 
   // Handlers for editing boxes
   const handleEdit = (id: number) => {
@@ -108,32 +130,39 @@ export default function HomeScreen() {
 
         const savedSettings = await AsyncStorage.getItem("@app_settings");
         if (savedSettings) {
-          setAppSettings(JSON.parse(savedSettings))
-        }
-        else {
+          setAppSettings(JSON.parse(savedSettings));
+        } else {
           setAppSettings(defaultSettings);
           await AsyncStorage.setItem("@app_settings", JSON.stringify(defaultSettings));
         }
-        ;
 
+        const savedToggleButtons = await AsyncStorage.getItem("@toggle_buttons");
+        if (savedToggleButtons) {
+          setToggleButtons(JSON.parse(savedToggleButtons));
+        } else {
+          // Optionally, save the default toggleButtons to AsyncStorage
+          await AsyncStorage.setItem("@toggle_buttons", JSON.stringify(toggleButtons));
+        }
       } catch (error) {
+        console.error("Failed to load data:", error);
       }
     };
     loadData();
   }, []);
 
-  // Save boxes and settings to AsyncStorage whenever they change
+  // Save boxes, settings, and toggleButtons to AsyncStorage whenever they change
   useEffect(() => {
     const saveData = async () => {
       try {
         await AsyncStorage.setItem("@boxes_layout", JSON.stringify(boxes));
         await AsyncStorage.setItem("@app_settings", JSON.stringify(appSettings));
+        await AsyncStorage.setItem("@toggle_buttons", JSON.stringify(toggleButtons));
       } catch (error) {
         console.error("Failed to save data:", error);
       }
     };
     saveData();
-  }, [boxes, appSettings]);
+  }, [boxes, appSettings, toggleButtons]);
 
   const handleAddNewBox = (text: string, color: string, image: string) => {
     const newId =
@@ -221,6 +250,18 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { padding: appSettings.boxMargin / 2 }]}>
+      <ToggleBar
+        buttons={toggleButtons}
+        selectedButtonIndex={selectedButtonIndex}
+        onToggle={handleToggle}
+        onOpenSettings={handleOpenBarSettingsModal}
+      />
+      <BarSettingsModal
+        isVisible={isBarSettingsModalVisible}
+        onClose={handleCloseBarSettingsModal}
+        buttons={toggleButtons}
+        onUpdateButtons={setToggleButtons}
+      />
       <TextInput
         style={[
           styles.textBox,
@@ -312,8 +353,7 @@ export default function HomeScreen() {
           currentSettings={appSettings}
         />
       )}
-            <Toast  />
-
+      <Toast />
     </View>
   );
 }
