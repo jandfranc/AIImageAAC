@@ -7,9 +7,41 @@ import {
   View,
   Image,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons"; // For the "X" icon
+import { MaterialIcons } from "@expo/vector-icons"; // For the "X", "edit", and "folder" icons
 import { BoxInfo } from "../types";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImageManipulator from 'expo-image-manipulator';
+import pako from 'pako';
+import { Buffer } from 'buffer'; // Import Buffer
+
+// Utility function to double the brightness of a hex color
+const brightenColor = (hex: string): string => {
+
+  // Remove the hash if present
+  hex = hex.replace(/^#/, "");
+
+  // Parse r, g, b values
+  let num = parseInt(hex, 16);
+  let r = ((num >> 16) + (num >> 16)) > 255 ? 255 : (num >> 16) * 2;
+  let g = (((num >> 8) & 0x00ff) + ((num >> 8) & 0x00ff)) > 255 ? 255 : ((num >> 8) & 0x00ff) * 2;
+  let b = ((num & 0x0000ff) + (num & 0x0000ff)) > 255 ? 255 : (num & 0x0000ff) * 2;
+
+  // Convert back to hex and return
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b)
+    .toString(16)
+    .slice(1)}`;
+};
+
+// Utility function to invert an RGBA color
+const invertColor = (rgba: string): string => {
+  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+),?\s*([\d.]+)?\)/);
+  if (!match) return 'white';
+  const r = 255 - parseInt(match[1], 10);
+  const g = 255 - parseInt(match[2], 10);
+  const b = 255 - parseInt(match[3], 10);
+  const a = match[4] !== undefined ? parseFloat(match[4]) : 1;
+  return `rgba(${r},${g},${b},${a})`;
+};
 
 interface FolderBoxProps {
   id: number;
@@ -37,6 +69,7 @@ const FolderBox: React.FC<FolderBoxProps> = ({
   const animation = useRef(new Animated.Value(0)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const [longPressDuration, setLongPressDuration] = useState(1000); // Default to 1000ms
+  const [averageColor, setAverageColor] = useState<string | null>(null); // State for average color
 
   useEffect(() => {
     const loadLongPressDuration = async () => {
@@ -99,50 +132,136 @@ const FolderBox: React.FC<FolderBoxProps> = ({
     ],
   };
 
+  // Calculate the faint border color by doubling the brightness of the box color
+  const faintBorderColor = brightenColor(boxInfo.color);
+
+  // Function to compute the average color of the image
+  const getAverageColor = async (uri: string): Promise<string> => {
+    console.log("Computing average color for:", uri)
+    try {
+      const manipResult = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1, height: 1 } }],
+        { base64: true, format: ImageManipulator.SaveFormat.PNG }
+      );
+      const base64 = manipResult.base64;
+
+      // Decode the PNG base64 to get the pixel color
+      const pngData = Buffer.from(base64, 'base64');
+
+      // PNG signature is the first 8 bytes
+      let pos = 8;
+      let idatData: number[] = [];
+
+      // Iterate through chunks to find IDAT
+      while (pos < pngData.length) {
+        const chunkLength = pngData.readUInt32BE(pos);
+        const chunkType = pngData.toString('ascii', pos + 4, pos + 8);
+        if (chunkType === 'IDAT') {
+          idatData = idatData.concat(Array.from(pngData.slice(pos + 8, pos + 8 + chunkLength)));
+        }
+        pos += 12 + chunkLength; // Move to the next chunk
+      }
+
+      if (idatData.length === 0) {
+        throw new Error('No IDAT chunk found');
+      }
+
+      // Decompress the IDAT data using pako
+      const decompressed = pako.inflate(new Uint8Array(idatData));
+
+      // For a 1x1 image, there's only one scanline
+      // The first byte is the filter type
+      const filterType = decompressed[0];
+      if (filterType !== 0) {
+        throw new Error(`Unsupported filter type: ${filterType}`);
+      }
+
+      // Assuming the image has RGBA format
+      const r = decompressed[1];
+      const g = decompressed[2];
+      const b = decompressed[3];
+      const a = decompressed[4];
+
+      return `rgba(${r},${g},${b},${(a / 255).toFixed(2)})`;
+    } catch (error) {
+      console.error('Error computing average color:', error);
+      return boxInfo.color; // Fallback to boxInfo.color if error occurs
+    }
+  };
+
+  // useEffect to compute average color when the image changes
+  useEffect(() => {
+    const computeAverageColor = async () => {
+      if (boxInfo.image) {
+        const color = await getAverageColor(boxInfo.image);
+        setAverageColor(color);
+      } else {
+        setAverageColor(null);
+      }
+    };
+    computeAverageColor();
+  }, [boxInfo.image]);
+
+  // Determine the border color
+  const borderColor = averageColor ? averageColor : faintBorderColor;
+
+  // Define borderWidth here for easy adjustment
+  const dynamicBorderWidth = 8; // Change this value as needed
+
   return (
     <TouchableOpacity
-      style={[
-        {
-          width: size,
-          height: size,
-          margin,
-        },
-      ]}
-      onLongPress={() => onLongSelect(id)}
-      onPress={() => {
-        if (selected) {
-          onSelect(id, boxInfo.folderId ?? "");
-        } else {
-          onSelect(id, boxInfo.folderId ?? "");
-        }
+      style={{
+        width: size,
+        height: size,
+        margin,
       }}
+      onLongPress={() => onLongSelect(id)}
+      onPress={() => onSelect(id, boxInfo.folderId ?? "")}
       delayLongPress={longPressDuration} // Use the loaded duration
     >
       <Animated.View
         style={[
           styles.box,
-          { backgroundColor: boxInfo.color },
+          {
+            backgroundColor: boxInfo.color,
+            borderColor: borderColor, // Use the computed border color
+            // Remove borderWidth from inline styles to avoid conflicts
+            // and use dynamicBorderWidth instead
+            borderWidth: dynamicBorderWidth,
+          },
           selected && styles.selectedBox,
           selected ? rotateAnimation : undefined,
         ]}
       >
-        {<Image source={{ uri: boxInfo.image }} style={styles.boxImage} />}
-        <Text style={[styles.boxText, { fontSize: size * 0.25 }]}>{boxInfo.text}</Text>
+        {boxInfo.image && (
+          <Image source={{ uri: boxInfo.image }} style={styles.boxImage} />
+        )}
+        <Text style={[styles.boxText, { fontSize: size * 0.25 }]}>
+          {boxInfo.text}
+        </Text>
+        {/* Folder Icon at the Bottom Right */}
+        <MaterialIcons
+          name="folder"
+          size={size * 0.2} // Adjust the size as needed
+          color={averageColor ? invertColor(averageColor) : "white"} // Invert color if image is present
+          style={styles.folderIcon}
+        />
       </Animated.View>
       {selected && (
         <TouchableOpacity
           style={styles.deleteButton}
           onPress={() => onDelete(id)} // Call the delete callback
         >
-          <MaterialIcons name="close" size={64} color="white" />
+          <MaterialIcons name="close" size={64} color="white" /> {/* Adjusted size for better visibility */}
         </TouchableOpacity>
       )}
       {selected && (
         <TouchableOpacity
           style={styles.editButton}
-          onPress={() => onEdit(id)} // Call the delete callback
+          onPress={() => onEdit(id)} // Call the edit callback
         >
-          <MaterialIcons name="edit" size={64} color="white" />
+          <MaterialIcons name="edit" size={64} color="white" /> {/* Adjusted size for better visibility */}
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -154,13 +273,14 @@ const styles = StyleSheet.create({
     flex: 1, // Ensures the Animated.View fills the TouchableOpacity
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 100,
+    borderRadius: 10,
     overflow: "hidden",
-    position: "relative", // Required for absolute positioning of the text
+    position: "relative", // Required for absolute positioning of the text and folder icon
+    borderColor: "transparent", // Will be overridden dynamically
+    // Removed borderWidth: 2 from here
   },
   selectedBox: {
     borderColor: "blue",
-    borderWidth: 2,
   },
   boxText: {
     color: "#fff",
@@ -202,6 +322,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
+  },
+  folderIcon: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
   },
 });
 
