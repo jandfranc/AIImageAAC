@@ -20,6 +20,7 @@
     "@react-native-community/slider": "^4.5.5",
     "@react-navigation/bottom-tabs": "^7.0.0",
     "@react-navigation/native": "^7.0.0",
+    "axios": "^1.7.8",
     "buffer": "^6.0.3",
     "expo": "~52.0.11",
     "expo-av": "^15.0.1",
