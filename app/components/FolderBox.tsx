@@ -14,9 +14,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import pako from 'pako';
 import { Buffer } from 'buffer'; // Import Buffer
 
-// Utility function to double the brightness of a hex color
-// Utility function to brighten a hex color by a specified factor
-const brightenColor = (hex: string, factor: number = 0.2): string => {
+const darkenColor = (hex: string, factor: number = 0.2): string => {
   // Remove the hash if present
   hex = hex.replace(/^#/, "");
 
@@ -27,7 +25,7 @@ const brightenColor = (hex: string, factor: number = 0.2): string => {
 
   if (hex.length !== 6) {
     console.error(`Invalid hex color: ${hex}`);
-    return "#FFFFFF"; // Default to white if invalid
+    return "#000000"; // Default to black if invalid
   }
 
   // Parse r, g, b values
@@ -35,15 +33,15 @@ const brightenColor = (hex: string, factor: number = 0.2): string => {
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
 
-  // Function to brighten a single color component
-  const brighten = (c: number): number => {
-    const newColor = Math.round(c + (255 - c) * factor);
-    return newColor > 255 ? 255 : newColor;
+  // Function to darken a single color component
+  const darken = (c: number): number => {
+    const newColor = Math.round(c - c * factor);
+    return newColor < 0 ? 0 : newColor;
   };
 
-  const newR = brighten(r);
-  const newG = brighten(g);
-  const newB = brighten(b);
+  const newR = darken(r);
+  const newG = darken(g);
+  const newB = darken(b);
 
   // Convert back to hex and return
   const toHex = (c: number): string => c.toString(16).padStart(2, '0');
@@ -153,7 +151,7 @@ const FolderBox: React.FC<FolderBoxProps> = ({
   };
 
   // Calculate the faint border color by doubling the brightness of the box color
-  const faintBorderColor = brightenColor(boxInfo.color);
+  const faintBorderColor = darkenColor(boxInfo.color);
 
   // Function to compute the average color of the image
   const getAverageColor = async (uri: string): Promise<string> => {
@@ -227,7 +225,7 @@ const FolderBox: React.FC<FolderBoxProps> = ({
   const folderDefined = !!boxInfo.folderId;
 
   // Determine the border color
-  const borderColor = !folderDefined ? brightenColor(boxInfo.color) : (averageColor ? averageColor : faintBorderColor);
+  const borderColor = !folderDefined ? darkenColor(boxInfo.color) : (averageColor ? averageColor : faintBorderColor);
 
   console.log(borderColor)
 
@@ -299,6 +297,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderRadius: 10,
+    borderTopRightRadius: 80, // Adjusted for better appearance
     overflow: "hidden",
     position: "relative", // Required for absolute positioning of the text and folder icon
     borderColor: "transparent", // Will be overridden dynamically
