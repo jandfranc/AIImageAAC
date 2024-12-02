@@ -15,7 +15,7 @@ import * as ImagePicker from "expo-image-picker";
 import { BoxInfo } from "../types";
 import Colors from "../design/Colors";
 
-interface CreateBoxModalProps {
+interface EditBoxModalProps {
   isVisible: boolean;
   onClose: () => void;
   onAdd: (text: string, color: string, image: string, isFolder: boolean) => void;
@@ -24,7 +24,7 @@ interface CreateBoxModalProps {
   isFolderOpen: boolean;
 }
 
-const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
+const EditBoxModal: React.FC<EditBoxModalProps> = ({
   isVisible,
   onClose,
   onAdd,
@@ -58,11 +58,12 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
 
   const generateAIImage = async () => {
     try {
-      const response = await fetch("https://example.com/api/generate-image", {
+      const response = await fetch("http://130.237.67.212:8000//generate-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: newBoxText || "Generate an image" }),
+        body: JSON.stringify({ text: newBoxText || "Generate an image", token: "expected-token" }),
       });
+      
       const result = await response.json();
       if (result.imageUrls && Array.isArray(result.imageUrls)) {
         setImages(result.imageUrls);
@@ -342,4 +343,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CreateBoxModal;
+export default EditBoxModal;

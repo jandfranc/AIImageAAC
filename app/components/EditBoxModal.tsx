@@ -55,13 +55,15 @@ const CreateBoxModal: React.FC<EditBoxModalProps> = ({
   
     const generateAIImage = async () => {
       try {
-        const response = await fetch("https://example.com/api/generate-image", {
+        const response = await fetch("http://130.237.67.212:8000/generate-images", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: newBoxText || "Generate an image" }),
+          body: JSON.stringify({ text: newBoxText || "Generate an image", token: "expected-token" }),
         });
+        
         const result = await response.json();
         if (result.imageUrls && Array.isArray(result.imageUrls)) {
+
           setImages(result.imageUrls);
           setSelectedImage(result.imageUrls[0]); // Default to the first image
         }

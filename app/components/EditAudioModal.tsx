@@ -18,7 +18,7 @@ import * as FileSystem from 'expo-file-system';
 
 
 
-const SERVER_URL = "http://localhost:3000"; // Replace with your server URL
+const SERVER_URL = "http://130.237.67.212:8000/"; // Replace with your server URL
 
 
 interface EditAudioModalProps {
@@ -157,7 +157,7 @@ const EditAudioModal: React.FC<EditAudioModalProps> = ({
         console.log(`${pair[0]}: ${pair[1]}`);
       }
   
-      const response = await fetch("http://localhost:3000/upload-audio", {
+      const response = await fetch("http://130.237.67.212:8000/upload-audio", {
         method: "POST",
         headers: {
           token: "expected-token", // Add your token here

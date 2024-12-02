@@ -20,7 +20,9 @@ import Toast from 'react-native-toast-message';
 import ToggleBar from "../components/ToggleBar";
 import BarSettingsModal from "../components/BarSettingsModal";
 import { v4 as uuidv4 } from 'uuid';
+import { Audio } from 'expo-av';
 import FolderBox from "../components/FolderBox";
+import axios from 'axios';
 
 
 export default function HomeScreen() {
@@ -392,9 +394,65 @@ export default function HomeScreen() {
     setTopText(topText.slice(0, -1));
   };
 
-  const handleSpeak = () => {
-    console.log("Speak: ", topText);
-    // Implement text-to-speech functionality here
+  const handleSpeak = async () => {
+    const selectedUri = toggleButtons[selectedButtonIndex]?.uri;
+  
+    if (!selectedUri) {
+      Toast.show({
+        type: "error",
+        text1: "No voice selected",
+        text2: "Please select a voice using the toggle bar.",
+      });
+      return;
+    }
+  
+    if (!topText.trim()) {
+      Toast.show({
+        type: "error",
+        text1: "No text to speak",
+        text2: "Please enter text to synthesize.",
+      });
+      return;
+    }
+  
+    try {
+      // Show a loading toast
+      Toast.show({
+        type: "info",
+        text1: "Generating audio",
+        text2: "Please wait while the audio is being generated...",
+      });
+  
+      // Make the TTS API request
+      const response = await axios.post("http://130.237.67.212:8000/tts", {
+        audio_url: selectedUri,
+        text: topText,
+      }, {
+        headers: {
+          token: "expected-token", // Replace with your actual token
+        },
+      });
+  
+      const { audioUrl } = response.data;
+  
+      // Play the audio
+      const { sound } = await Audio.Sound.createAsync({ uri: audioUrl });
+      await sound.playAsync();
+  
+      // Show success toast
+      Toast.show({
+        type: "success",
+        text1: "Audio generated",
+        text2: "Playing the generated audio.",
+      });
+    } catch (error) {
+      console.error("Error during text-to-speech:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error generating audio",
+        text2: "Something went wrong. Please try again.",
+      });
+    }
   };
 
   return (
