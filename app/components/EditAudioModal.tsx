@@ -49,6 +49,30 @@ const EditAudioModal: React.FC<EditAudioModalProps> = ({
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [buttonText, setButtonText] = useState(button.text);
   const [serverUri, setServerUri] = useState<string | null>(null)
+  const [sound, setSound] = React.useState<Audio.Sound | null>(null);
+
+  const playAudio = async () => {
+    if (button.uri) {
+      try {
+        const { sound } = await Audio.Sound.createAsync({ uri: button.uri });
+        setSound(sound);
+        await sound.playAsync();
+      } catch {
+        Alert.alert("Error", "Failed to play audio.");
+      }
+    } else {
+      Alert.alert("No Audio", "This button has no audio.");
+    }
+  };
+
+  React.useEffect(() => {
+    return sound
+      ? () => {
+          sound.unloadAsync();
+        }
+      : undefined;
+  }, [sound]);
+
 
   useEffect(() => {
     loadNewSentence();
@@ -215,6 +239,11 @@ const EditAudioModal: React.FC<EditAudioModalProps> = ({
               <MaterialIcons name="upload" size={30} color="#fff" />
               <Text style={styles.buttonText}>Upload Audio</Text>
             </TouchableOpacity>
+            {button.uri && (
+              <TouchableOpacity style={styles.playButton} onPress={playAudio}>
+                <MaterialIcons name="play-arrow" size={60} color="#fff" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Footer */}
@@ -320,6 +349,13 @@ const styles = StyleSheet.create({
     color: "#4caf50",
     marginLeft: 10,
     fontWeight: "bold",
+  },
+  playButton: {
+    backgroundColor: "#4caf50",
+    borderRadius: 50,
+    padding: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 
