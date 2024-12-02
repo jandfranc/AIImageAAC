@@ -17,9 +17,9 @@ import EditAudioModal from "./EditAudioModal";
 interface BarSettingsModalProps {
   isVisible: boolean;
   onClose: () => void;
-  buttons: { text: string; audio: string | null }[];
+  buttons: { text: string; uri: string | null }[];
   onUpdateButtons: (
-    updatedButtons: { text: string; audio: string | null }[]
+    updatedButtons: { text: string; uri: string | null }[]
   ) => void;
   boxesPerRow?: number; // Number of boxes per row
 }
@@ -59,7 +59,7 @@ const BarSettingsModal: React.FC<BarSettingsModalProps> = ({
       );
       return;
     }
-    setButtonList((prev) => [...prev, { text: "New Button", audio: null }]);
+    setButtonList((prev) => [...prev, { text: "New Button", uri: null }]);
   };
 
   const handleDeleteButton = (index: number) => {
@@ -72,7 +72,7 @@ const BarSettingsModal: React.FC<BarSettingsModalProps> = ({
 
   const handleUpdateButton = (
     index: number,
-    updatedButton: { text: string; audio: string | null }
+    updatedButton: { text: string; uri: string | null }
   ) => {
     setButtonList((prev) =>
       prev.map((btn, i) => (i === index ? updatedButton : btn))

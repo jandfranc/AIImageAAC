@@ -9,16 +9,23 @@ import {
   Alert,
   TextInput,
   ScrollView,
+  Platform,
 } from "react-native";
 import { Audio } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
 import { MaterialIcons } from "@expo/vector-icons";
+import * as FileSystem from 'expo-file-system';
+
+
+
+const SERVER_URL = "http://localhost:3000"; // Replace with your server URL
+
 
 interface EditAudioModalProps {
   isVisible: boolean;
   onClose: () => void;
-  button: { text: string; audio: string | null };
-  onUpdate: (updatedButton: { text: string; audio: string | null }) => void;
+  button: { text: string; uri: string | null };
+  onUpdate: (updatedButton: { text: string; uri: string | null }) => void;
 }
 
 const kidFriendlySentences = [
@@ -41,6 +48,7 @@ const EditAudioModal: React.FC<EditAudioModalProps> = ({
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [buttonText, setButtonText] = useState(button.text);
+  const [serverUri, setServerUri] = useState<string | null>(null)
 
   useEffect(() => {
     loadNewSentence();
@@ -76,7 +84,9 @@ const EditAudioModal: React.FC<EditAudioModalProps> = ({
       await recording?.stopAndUnloadAsync();
       const uri = recording?.getURI();
       if (uri) {
-        onUpdate({ text: buttonText, audio: uri });
+        const serverUri = await uploadAudioToServer(uri);
+        setServerUri(serverUri)
+
       }
       setRecording(null);
       setIsRecording(false);
@@ -88,16 +98,66 @@ const EditAudioModal: React.FC<EditAudioModalProps> = ({
   const handleUploadAudio = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: "audio/*" });
-      if (result.uri) {
-        onUpdate({ text: buttonText, audio: result.uri });
+      if (result.type === "success" && result.uri) {
+        const audioURI = uploadAudioToServer(result.uri);
+        console.log("hi")
+        console.log(audioURI)
       }
     } catch {
-      Alert.alert("Oops!", "We couldn't upload the audio. Try again.");
+      console.error("Failed to upload audio.");
     }
   };
 
+ 
+  const uploadAudioToServer = async (uri: string) => {
+    try {
+      const formData = new FormData();
+  
+      if (Platform.OS === "web") {
+        // Fetch the file as a Blob for web
+        const response = await fetch(uri);
+        const blob = await response.blob();
+  
+        formData.append("audio", blob, `audio-${Date.now()}.webm`);
+      } else {
+        // Use URI directly for native platforms
+        formData.append("audio", {
+          uri,
+          name: `audio-${Date.now()}.wav`,
+          type: "audio/wav", // Ensure this matches your file's MIME type
+        } as any);
+      }
+  
+      console.log("FormData Content:");
+      for (const pair of formData.entries()) {
+        console.log(`${pair[0]}: ${pair[1]}`);
+      }
+  
+      const response = await fetch("http://localhost:3000/upload-audio", {
+        method: "POST",
+        headers: {
+          token: "expected-token", // Add your token here
+        },
+        body: formData,
+      });
+  
+      if (!response.ok) {
+        const errorResponse = await response.text();
+        throw new Error(`Upload failed: ${errorResponse}`);
+      }
+  
+      const data = await response.json();
+      console.log("Upload successful:", data);
+      return data.audioUrl
+    } catch (error) {
+      console.error("Upload Error:", error);
+      Alert.alert("Error", error.message || "Failed to upload audio.");
+    }
+  };
+  
+
   const handleSave = () => {
-    onUpdate({ text: buttonText, audio: button.audio });
+    onUpdate({ text: buttonText, uri: serverUri });
     onClose();
   };
 

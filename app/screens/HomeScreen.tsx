@@ -42,10 +42,10 @@ export default function HomeScreen() {
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultSettings);
 
   // State for toggle buttons
-  const [toggleButtons, setToggleButtons] = useState<{ text: string; audio: string | null }[]>([
-    { text: "Option 1", audio: null },
-    { text: "Option 2", audio: null },
-    { text: "Option 3", audio: null },
+  const [toggleButtons, setToggleButtons] = useState<{ text: string; uri: string | null }[]>([
+    { text: "Option 1", uri: null },
+    { text: "Option 2", uri: null },
+    { text: "Option 3", uri: null },
   ]);
   const [selectedButtonIndex, setSelectedButtonIndex] = useState<number>(0);
   const [isBarSettingsModalVisible, setBarSettingsModalVisible] = useState(false);

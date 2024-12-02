@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 interface ToggleBarProps {
-    buttons: { text: string; audio: string | null }[];
+    buttons: { text: string; uri: string | null }[];
     onToggle: (index: number) => void;
   selectedButtonIndex: number ;
   onOpenSettings: () => void;

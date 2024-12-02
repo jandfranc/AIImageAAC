@@ -12,7 +12,7 @@ import { Audio } from "expo-av";
 
 interface ButtonItemProps {
   index: number;
-  button: { text: string; audio: string | null };
+  button: { text: string; uri: string | null };
   boxSize: number;
   boxMargin: number;
   onEdit: () => void;
@@ -30,9 +30,9 @@ const ButtonItem: React.FC<ButtonItemProps> = ({
   const [sound, setSound] = React.useState<Audio.Sound | null>(null);
 
   const playAudio = async () => {
-    if (button.audio) {
+    if (button.uri) {
       try {
-        const { sound } = await Audio.Sound.createAsync({ uri: button.audio });
+        const { sound } = await Audio.Sound.createAsync({ uri: button.uri });
         setSound(sound);
         await sound.playAsync();
       } catch {
