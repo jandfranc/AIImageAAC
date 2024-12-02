@@ -15,22 +15,42 @@ import pako from 'pako';
 import { Buffer } from 'buffer'; // Import Buffer
 
 // Utility function to double the brightness of a hex color
-const brightenColor = (hex: string): string => {
-
+// Utility function to brighten a hex color by a specified factor
+const brightenColor = (hex: string, factor: number = 0.2): string => {
   // Remove the hash if present
   hex = hex.replace(/^#/, "");
 
+  // Expand shorthand form (e.g. "03F") to full form ("0033FF")
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('');
+  }
+
+  if (hex.length !== 6) {
+    console.error(`Invalid hex color: ${hex}`);
+    return "#FFFFFF"; // Default to white if invalid
+  }
+
   // Parse r, g, b values
-  let num = parseInt(hex, 16);
-  let r = ((num >> 16) + (num >> 16)) > 255 ? 255 : (num >> 16) * 2;
-  let g = (((num >> 8) & 0x00ff) + ((num >> 8) & 0x00ff)) > 255 ? 255 : ((num >> 8) & 0x00ff) * 2;
-  let b = ((num & 0x0000ff) + (num & 0x0000ff)) > 255 ? 255 : (num & 0x0000ff) * 2;
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+
+  // Function to brighten a single color component
+  const brighten = (c: number): number => {
+    const newColor = Math.round(c + (255 - c) * factor);
+    return newColor > 255 ? 255 : newColor;
+  };
+
+  const newR = brighten(r);
+  const newG = brighten(g);
+  const newB = brighten(b);
 
   // Convert back to hex and return
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b)
-    .toString(16)
-    .slice(1)}`;
+  const toHex = (c: number): string => c.toString(16).padStart(2, '0');
+
+  return `#${toHex(newR)}${toHex(newG)}${toHex(newB)}`;
 };
+
 
 // Utility function to invert an RGBA color
 const invertColor = (rgba: string): string => {
@@ -203,8 +223,13 @@ const FolderBox: React.FC<FolderBoxProps> = ({
     computeAverageColor();
   }, [boxInfo.image]);
 
+  // Determine if the folder is defined
+  const folderDefined = !!boxInfo.folderId;
+
   // Determine the border color
-  const borderColor = averageColor ? averageColor : faintBorderColor;
+  const borderColor = !folderDefined ? brightenColor(boxInfo.color) : (averageColor ? averageColor : faintBorderColor);
+
+  console.log(borderColor)
 
   // Define borderWidth here for easy adjustment
   const dynamicBorderWidth = 8; // Change this value as needed
