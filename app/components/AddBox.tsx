@@ -7,9 +7,11 @@ import { BoxInfo } from "../types";
 interface AddBoxProps {
   boxSize: number;
   margin: number;
-  onAdd: (text: string, color: string, image: string) => void;
+  onAdd: (text: string, color: string, image: string, isFolder: boolean) => void;
   deletedBoxes: BoxInfo[];
   onReAdd: (box: BoxInfo) => void;
+  isFolderOpen: boolean;
+
 }
 
 const AddBox: React.FC<AddBoxProps> = ({
@@ -18,6 +20,7 @@ const AddBox: React.FC<AddBoxProps> = ({
   onAdd,
   deletedBoxes,
   onReAdd,
+  isFolderOpen
 }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
 
@@ -42,6 +45,7 @@ const AddBox: React.FC<AddBoxProps> = ({
           onReAdd(box);
           setIsModalVisible(false);
         }}
+        isFolderOpen={isFolderOpen}
       />
     </>
   );

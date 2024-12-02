@@ -9,84 +9,90 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  Switch,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { BoxInfo } from "../types";
 import Colors from "../design/Colors";
+
 interface CreateBoxModalProps {
   isVisible: boolean;
   onClose: () => void;
-  onAdd: (text: string, color: string, image: string) => void;
+  onAdd: (text: string, color: string, image: string, isFolder: boolean) => void;
   deletedBoxes: BoxInfo[];
   onReAdd: (box: BoxInfo) => void;
+  isFolderOpen: boolean;
 }
 
 const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
-    isVisible,
-    onClose,
-    onAdd,
-    deletedBoxes,
-    onReAdd,
-  }) => {
-    const [newBoxText, setNewBoxText] = useState("");
-    const [selectedColor, setSelectedColor] = useState<string>(Colors.Red);
-    const [images, setImages] = useState<string[]>([]);
-    const [selectedImage, setSelectedImage] = useState<string>("");
-    const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
-  
-    const pickImage = async () => {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permissionResult.granted === false) {
-        alert("Permission to access camera roll is required!");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 1,
+  isVisible,
+  onClose,
+  onAdd,
+  deletedBoxes,
+  onReAdd,
+  isFolderOpen
+}) => {
+  const [newBoxText, setNewBoxText] = useState("");
+  const [selectedColor, setSelectedColor] = useState<string>(Colors.Red);
+  const [images, setImages] = useState<string[]>([]);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
+  const [isFolder, setIsFolder] = useState(false);
+
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      alert("Permission to access camera roll is required!");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0].uri);
+    }
+  };
+
+  const generateAIImage = async () => {
+    try {
+      const response = await fetch("https://example.com/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: newBoxText || "Generate an image" }),
       });
-      if (!result.canceled) {
-        setSelectedImage(result.assets[0].uri);
+      const result = await response.json();
+      if (result.imageUrls && Array.isArray(result.imageUrls)) {
+        setImages(result.imageUrls);
+        setSelectedImage(result.imageUrls[0]); // Default to the first image
       }
-    };
-  
-    const generateAIImage = async () => {
-      try {
-        const response = await fetch("https://example.com/api/generate-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: newBoxText || "Generate an image" }),
-        });
-        const result = await response.json();
-        if (result.imageUrls && Array.isArray(result.imageUrls)) {
-          setImages(result.imageUrls);
-          setSelectedImage(result.imageUrls[0]); // Default to the first image
-        }
-      } catch (error) {
-        console.error("AI image generation failed:", error);
-        alert("Failed to generate images. Please try again.");
-      }
-    };
-  
-    const handleAdd = () => {
-      onAdd(newBoxText.trim() || "New Box", selectedColor, selectedImage);
-      setNewBoxText("");
-      setSelectedColor(Colors.Red);
-      setImages([]);
-      setSelectedImage("");
-      onClose();
-    };
-  
-    return (
-      <Modal
-        visible={isVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={onClose}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+    } catch (error) {
+      console.error("AI image generation failed:", error);
+      alert("Failed to generate images. Please try again.");
+    }
+  };
+
+  const handleAdd = () => {
+    onAdd(newBoxText.trim() || "New Box", selectedColor, selectedImage, isFolder);
+    setNewBoxText("");
+    setSelectedColor(Colors.Red);
+    setImages([]);
+    setSelectedImage("");
+    setIsFolder(false);
+    onClose();
+  };
+
+  return (
+    <Modal
+      visible={isVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
           {deletedBoxes.length > 0 && (
             <View style={styles.deletedBoxesContainer}>
               <Text style={styles.sectionTitle}>Click to Re-add Deleted Boxes</Text>
@@ -107,98 +113,106 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
               </ScrollView>
             </View>
           )}
-            <Text style={styles.modalTitle}>Create Box</Text>
-  
-            {/* Add Box Section */}
+          <Text style={styles.modalTitle}>Create Box</Text>
+
+          {/* Add Box Section */}
             <View style={styles.addBoxContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter box text"
-                value={newBoxText}
-                onChangeText={setNewBoxText}
-              />
-              <Text style={styles.label}>Select Color:</Text>
-              <View style={styles.colorSelector}>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter box text"
+              value={newBoxText}
+              onChangeText={setNewBoxText}
+            />
+            <Text style={styles.label}>Select Color:</Text>
+            <View style={styles.colorSelector}>
               {Object.values(Colors).map((color: string) => (
-                  <TouchableOpacity
-                    key={color}
-                    style={[
-                      styles.colorOption,
-                      { backgroundColor: color },
-                      selectedColor === color && styles.selectedColor,
-                    ]}
-                    onPress={() => setSelectedColor(color)}
-                  />
-                ))}
-              </View>
-            </View>
-  
-            {/* Tab Selector */}
-            <View style={styles.tabContainer}>
               <TouchableOpacity
-                style={[styles.tab, activeTab === "upload" && styles.activeTab]}
-                onPress={() => setActiveTab("upload")}
-              >
-                <Text style={styles.tabText}>Upload Picture</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tab, activeTab === "ai" && styles.activeTab]}
-                onPress={() => setActiveTab("ai")}
-              >
-                <Text style={styles.tabText}>Create Pictures</Text>
-              </TouchableOpacity>
+                key={color}
+                style={[
+                styles.colorOption,
+                { backgroundColor: color },
+                selectedColor === color && styles.selectedColor,
+                ]}
+                onPress={() => setSelectedColor(color)}
+              />
+              ))}
             </View>
-  
-            {/* Tab Content */}
-            {activeTab === "upload" ? (
-              <View style={styles.tabContent}>
-                <Button title="Pick an image" onPress={pickImage} />
-                {selectedImage ? (
-                  <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
-                ) : (
-                  <Text style={styles.noImageText}>No image selected</Text>
-                )}
-              </View>
-            ) : (
-              <View style={styles.tabContent}>
-                <Button title={"Create pictures for " + newBoxText} onPress={generateAIImage} />
-                {images.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.imageRow}
-                  >
-                    {images.map((imgUri, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        onPress={() => setSelectedImage(imgUri)}
-                      >
-                        <Image
-                          source={{ uri: imgUri }}
-                          style={[
-                            styles.imagePreview,
-                            selectedImage === imgUri && styles.selectedImage,
-                          ]}
-                        />
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <Text style={styles.noImageText}>No images generated</Text>
-                )}
-              </View>
+            {!isFolderOpen && (
+              <><View style={styles.switchContainer}>
+                <Text style={styles.label}>Is this a folder?</Text>
+
+              </View><Switch
+                  value={isFolder}
+                  onValueChange={setIsFolder} /></>
             )}
-  
-            {/* Buttons */}
-            <View style={styles.modalButtons}>
-              <Button title="Cancel" onPress={onClose} />
-              <Button title="Add Box" onPress={handleAdd} />
             </View>
+
+          {/* Tab Selector */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "upload" && styles.activeTab]}
+              onPress={() => setActiveTab("upload")}
+            >
+              <Text style={styles.tabText}>Upload Picture</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "ai" && styles.activeTab]}
+              onPress={() => setActiveTab("ai")}
+            >
+              <Text style={styles.tabText}>Create Pictures</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Tab Content */}
+          {activeTab === "upload" ? (
+            <View style={styles.tabContent}>
+              <Button title="Pick an image" onPress={pickImage} />
+              {selectedImage ? (
+                <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+              ) : (
+                <Text style={styles.noImageText}>No image selected</Text>
+              )}
+            </View>
+          ) : (
+            <View style={styles.tabContent}>
+              <Button title={"Create pictures for " + newBoxText} onPress={generateAIImage} />
+              {images.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.imageRow}
+                >
+                  {images.map((imgUri, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => setSelectedImage(imgUri)}
+                    >
+                      <Image
+                        source={{ uri: imgUri }}
+                        style={[
+                          styles.imagePreview,
+                          selectedImage === imgUri && styles.selectedImage,
+                        ]}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={styles.noImageText}>No images generated</Text>
+              )}
+            </View>
+          )}
+
+          {/* Buttons */}
+          <View style={styles.modalButtons}>
+            <Button title="Cancel" onPress={onClose} />
+            <Button title="Add Box" onPress={handleAdd} />
           </View>
         </View>
-      </Modal>
-    );
-  };
+      </View>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   modalContainer: {
@@ -306,6 +320,12 @@ const styles = StyleSheet.create({
   },
   selectedColor: {
     borderColor: "#000",
+  },
+  switchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginVertical: 10,
   },
   modalButtons: {
     flexDirection: "row",

@@ -13,12 +13,15 @@ import AddBox from "../components/AddBox";
 import GenericBox from "../components/GenericBox";
 import EditBoxModal from "../components/EditBoxModal";
 import SettingsModal from "../components/SettingsModal";
-import { AppSettings, BoxInfo, BoxType } from "../types";
+import { AppSettings, BoxInfo, BoxType, FolderInfo } from "../types";
 import { defaultSettings } from "../data/defaultSettings";
 import defaultBoxes from "../data/defaultBoxes";
 import Toast from 'react-native-toast-message';
 import ToggleBar from "../components/ToggleBar";
 import BarSettingsModal from "../components/BarSettingsModal";
+import { v4 as uuidv4 } from 'uuid';
+import FolderBox from "../components/FolderBox";
+
 
 export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
@@ -46,6 +49,46 @@ export default function HomeScreen() {
   ]);
   const [selectedButtonIndex, setSelectedButtonIndex] = useState<number>(0);
   const [isBarSettingsModalVisible, setBarSettingsModalVisible] = useState(false);
+  
+  const [currentOpenFolder, setCurrentOpenFolder] = useState<string | null>(null);
+  const [folders, setFolders] = useState<FolderInfo[]>([]);
+
+
+  
+  const loadFolderData = async () => {
+    try {
+      const savedFolders = await AsyncStorage.getItem("@folders_layout");
+      if (savedFolders) setFolders(JSON.parse(savedFolders));
+    } catch (error) {
+      console.error("Failed to load data:", error);
+    }
+  }
+
+  //folder data should be loade din startup
+  useEffect(() => {
+    loadFolderData();
+  }, []);
+
+  // on change of folder array save to async storage
+  useEffect(() => {
+    console.log("saving")
+    const saveData = async () => {
+      try {
+        await AsyncStorage.setItem("@folders_layout", JSON.stringify(folders));
+      } catch (error) {
+        console.error("Failed to save data:", error);
+      }
+    };
+    saveData();
+  }, [folders]);
+
+  const handleOpenFolder = (folderUUID: string) => {
+    setCurrentOpenFolder(folderUUID);
+  }
+
+  const handleCloseFolder = () => {
+    setCurrentOpenFolder(null);
+  }
 
   const handleToggle = (index: number) => {
     setSelectedButtonIndex(index);
@@ -116,10 +159,15 @@ export default function HomeScreen() {
     adjustedHeight / (boxSize + appSettings.boxMargin)
   );
   const boxesPerPage = appSettings.numHorizontalBoxes * numVerticalBoxes;
-  const numPages = Math.ceil((boxes.length + 1) / boxesPerPage);
+
+  const currentBoxes = currentOpenFolder
+    ? folders.find((folder) => folder.uuid === currentOpenFolder)?.containedBoxes || []
+    : boxes;
+
+  const numPages = Math.ceil((currentBoxes.length + 1) / boxesPerPage);
 
   const pages = Array.from({ length: numPages }, (_, pageIndex) =>
-    boxes.slice(pageIndex * boxesPerPage, (pageIndex + 1) * boxesPerPage)
+    currentBoxes.slice(pageIndex * boxesPerPage, (pageIndex + 1) * boxesPerPage)
   );
 
   useEffect(() => {
@@ -164,26 +212,85 @@ export default function HomeScreen() {
     saveData();
   }, [boxes, appSettings, toggleButtons]);
 
-  const handleAddNewBox = (text: string, color: string, image: string) => {
-    const newId =
+  const handleAddNewBox = (text: string, color: string, image: string, isFolder: boolean) => {
+    
+    console.log(folders)
+    
+    var uuid = uuidv4();
+
+    if (currentOpenFolder) {
+      console.log(folders)
+      const folderIndex = folders.findIndex((folder) => folder.uuid === currentOpenFolder);
+      console.log(folderIndex)
+      if (folderIndex !== -1) {
+       // new id should be base don current boxes in current folder (aka same logic as below but based only on containedBoxes for the given folder)
+        const newId = folders[folderIndex].containedBoxes.length > 0
+          ? Math.max(...folders[folderIndex].containedBoxes.map((b) => b.id)) + 1
+          : 1;
+        const newBox: BoxInfo = {
+          id: newId,
+          // type based on isfolder
+          type: BoxType.TalkBox,
+          text,
+          image,
+          color,    
+        };
+        const updatedFolder = { ...folders[folderIndex] };
+        updatedFolder.containedBoxes.push(newBox);
+        const updatedFolders = [...folders];
+        updatedFolders[folderIndex] = updatedFolder;
+        setFolders(updatedFolders);
+      }
+    }
+    else {
+      const newId =
       boxes.length > 0
         ? Math.max(
             ...boxes.map((b) => b.id),
             ...defaultBoxes.map((b) => b.id)
           ) + 1
         : 1;
-    const newBox: BoxInfo = {
-      id: newId,
-      type: BoxType.TalkBox,
-      text,
-      image,
-      color,
-    };
-    setBoxes((prevBoxes) => [...prevBoxes, newBox]);
+    if (isFolder) {
+      const newFolder: FolderInfo = {
+        uuid: uuid,
+        text: text,
+        containedBoxes: [],
+      };
+      setFolders((prevFolders) => [...prevFolders, newFolder]);
+      console.log(newFolder)
+    }
+      const newBox: BoxInfo = {
+        id: newId,
+        // type based on isfolder
+        type: isFolder ? BoxType.FolderBox : BoxType.TalkBox,
+        text,
+        image,
+        color,
+        folderId: isFolder ? uuid : undefined
+  
+      };
+      setBoxes((prevBoxes) => [...prevBoxes, newBox]);
+    }
   };
 
   const handleDelete = (id: number) => {
-    setBoxes((prevBoxes) => prevBoxes.filter((box) => box.id !== id));
+    if (currentOpenFolder) {
+      const folderIndex = folders.findIndex((folder) => folder.uuid === currentOpenFolder);
+      if (folderIndex !== -1) {
+        const updatedFolder = { ...folders[folderIndex] };
+        updatedFolder.containedBoxes = updatedFolder.containedBoxes.filter(
+          (box) => box.id !== id
+        );
+        const updatedFolders = [...folders];
+        updatedFolders[folderIndex] = updatedFolder;
+        setFolders(updatedFolders);
+      }
+    }
+    else {
+      setBoxes((prevBoxes) => prevBoxes.filter((box) => box.id !== id));
+
+    }
+    
   };
 
   const handleReAdd = (box: BoxInfo) => {
@@ -203,10 +310,32 @@ export default function HomeScreen() {
     setBoxes(updatedBoxes);
   };
 
-  const handleSelect = (id: number | null) => {
+  const handleSelect = (id: number | null, uuid: string = "") => {
     console.log(selectedBoxId, id);
     if (selectedBoxId !== null && id !== null) {
-      swapBoxes(selectedBoxId, id);
+      if (currentOpenFolder) {
+        //Swap boxes in the current folder
+        const folderIndex = folders.findIndex((folder) => folder.uuid === currentOpenFolder);
+        if (folderIndex !== -1) {
+          const sourceBox = folders[folderIndex].containedBoxes.find((box) => box.id === selectedBoxId);
+          const targetBox = folders[folderIndex].containedBoxes.find((box) => box.id === id);
+          if (sourceBox && targetBox) {
+            const updatedFolder = { ...folders[folderIndex] };
+            const sourceIndex = updatedFolder.containedBoxes.findIndex((box) => box.id === selectedBoxId);
+            const targetIndex = updatedFolder.containedBoxes.findIndex((box) => box.id === id);
+            [updatedFolder.containedBoxes[sourceIndex], updatedFolder.containedBoxes[targetIndex]] = [
+              updatedFolder.containedBoxes[targetIndex],
+              updatedFolder.containedBoxes[sourceIndex],
+            ];
+            const updatedFolders = [...folders];
+            updatedFolders[folderIndex] = updatedFolder;
+            setFolders(updatedFolders);
+          }
+        }}
+      else {
+        swapBoxes(selectedBoxId, id);
+
+      }
       setSelectedBoxId(null);
       return;
     }
@@ -214,10 +343,30 @@ export default function HomeScreen() {
       setSelectedBoxId(null);
       return;
     }
+
+    if (uuid) {
+      handleOpenFolder(uuid);
+    }
+    else {
+      if (currentOpenFolder) {
+        // same as below but needs to get it from containedBoxes for the current folder
+        const folderIndex = folders.findIndex((folder) => folder.uuid === currentOpenFolder);
+        if (folderIndex !== -1) {
+          const box = folders[folderIndex].containedBoxes.find((box) => box.id === id);
+          if (box) {
+            setTopText(
+              topText + (topText ? " " : "") + box.text
+            );
+          }
+        }
+      }
+      else {
+        setTopText(
+          topText + (topText ? " " : "") + (boxes.find((box) => box.id === id)?.text || "")
+        );  
+      }
+        }
     
-    setTopText(
-      topText + (topText ? " " : "") + (boxes.find((box) => box.id === id)?.text || "")
-    );
   };
 
   const handleLongSelect = (id: number) => {
@@ -294,40 +443,69 @@ export default function HomeScreen() {
         {pages.map((pageBoxes, pageIndex) => (
           <View key={pageIndex} style={[styles.grid, { width }]}>
             {pageBoxes.map((box) => (
-              <WordBox
-                key={box.id}
-                id={box.id}
-                size={boxSize}
-                margin={appSettings.boxMargin / 2}
-                selected={box.id === selectedBoxId}
-                onSelect={handleSelect}
-                onLongSelect={handleLongSelect}
-                onDelete={handleDelete}
-                onEdit={handleEdit}
-                boxInfo={box}
-              />
+              box.type !== BoxType.FolderBox ? (
+                <WordBox
+                  key={box.id}
+                  id={box.id}
+                  size={boxSize}
+                  margin={appSettings.boxMargin / 2}
+                  selected={box.id === selectedBoxId}
+                  onSelect={handleSelect}
+                  onLongSelect={handleLongSelect}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                  boxInfo={box}
+                />
+              ) : (
+                <FolderBox
+                  key={box.id}
+                  id={box.id}
+                  size={boxSize}
+                  margin={appSettings.boxMargin / 2}
+                  selected={box.id === selectedBoxId}
+                  onSelect={handleSelect}
+                  onLongSelect={handleLongSelect}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                  boxInfo={box}
+                />
+              )
             ))}
             {pageIndex === numPages - 1 && (
               <>
+
                 <AddBox
                   boxSize={boxSize}
                   margin={appSettings.boxMargin}
                   onAdd={handleAddNewBox}
                   deletedBoxes={deletedBoxes}
                   onReAdd={handleReAdd}
+                  isFolderOpen = {currentOpenFolder !== null}
                 />
-                <GenericBox
-                  boxSize={boxSize}
-                  margin={appSettings.boxMargin}
-                  onPress={handleResetBoxes}
-                  iconName="refresh"
-                />
-                <GenericBox
-                  boxSize={boxSize}
-                  margin={appSettings.boxMargin}
-                  onPress={handleOpenSettingsModal}
-                  iconName="settings"
-                />
+                {!currentOpenFolder && (
+                  <>
+                    <GenericBox
+                      boxSize={boxSize}
+                      margin={appSettings.boxMargin}
+                      onPress={handleResetBoxes}
+                      iconName="refresh"
+                    />
+                    <GenericBox
+                      boxSize={boxSize}
+                      margin={appSettings.boxMargin}
+                      onPress={handleOpenSettingsModal}
+                      iconName="settings"
+                    />
+                  </>
+                )}
+                {currentOpenFolder && (
+                  <GenericBox
+                    boxSize={boxSize}
+                    margin={appSettings.boxMargin}
+                    onPress={handleCloseFolder}
+                    iconName="close"
+                  />
+                )}
               </>
             )}
           </View>

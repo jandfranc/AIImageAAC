@@ -2,6 +2,7 @@ export enum BoxType {
     TalkBox,
     OptionBox,
     GenericBox,
+    FolderBox
 }
 
 export interface BoxInfo {
@@ -10,6 +11,13 @@ export interface BoxInfo {
     text: string;
     image: string;
     color: string;
+    folderId?: string; //uuid
+}
+
+export interface FolderInfo {
+    uuid: string;
+    text: string;
+    containedBoxes: BoxInfo[];
 }
 
 export interface AppSettings {
