@@ -4,13 +4,12 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   TextInput,
-  Button,
   StyleSheet,
   useWindowDimensions,
   ScrollView,
-  Modal, // Imported Modal
-  TouchableOpacity, // Imported TouchableOpacity for option buttons
-  Text, // Imported Text for option labels
+  Modal,
+  TouchableOpacity,
+  Text,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import WordBox from "../components/WordBox";
@@ -158,7 +157,7 @@ export default function HomeScreen() {
 
   // Adjust available height for boxes
   const topTextHeight = 110; // Fixed height, could be made dynamic
-  const buttonContainerHeight = 50; // Fixed height
+  const buttonContainerHeight = 80; // Increased height
 
   const adjustedHeight =
     height - topTextHeight - buttonContainerHeight - appSettings.boxMargin * 3;
@@ -536,7 +535,11 @@ useEffect(() => {
         lastMessage.data.data.options
       ) {
         console.log("Received predict sentence options:", lastMessage.data.data.options);
-        setPredictOptions(lastMessage.data.data.options);
+        
+        // Remove duplicate options
+        const uniqueOptions = Array.from(new Set(lastMessage.data.data.options));
+        setPredictOptions(uniqueOptions as string[]);
+
         setPredictModalVisible(true);
         Toast.show({
           type: "success",
@@ -608,24 +611,24 @@ const playAudio = async (audioUrl: any) => {
         placeholderTextColor="#aaa"
         multiline
       />
-      <View style={[styles.buttonContainer, { height: 50 }]}>
-        <View style={styles.buttonWrapper}>
-          <Button title="Delete Word" onPress={handleDeleteWord} />
-        </View>
-        <View style={styles.buttonWrapper}>
-          <Button title="Delete Letter" onPress={handleDeleteLetter} />
-        </View>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.customButton} onPress={handleDeleteWord}>
+          <Text style={styles.buttonText}>Delete Word</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.customButton} onPress={handleDeleteLetter}>
+          <Text style={styles.buttonText}>Delete Letter</Text>
+        </TouchableOpacity>
         
         {/* Conditionally Render the "Expand Sentence" Button */}
         {appSettings.allowExpansion && (
-          <View style={styles.buttonWrapper}>
-            <Button title="Expand Sentence" onPress={handlePredictSentence} />
-          </View>
+          <TouchableOpacity style={styles.customButton} onPress={handlePredictSentence}>
+            <Text style={styles.buttonText}>Expand Sentence</Text>
+          </TouchableOpacity>
         )}
         
-        <View style={styles.buttonWrapper}>
-          <Button title="Speak" onPress={handleSpeak} />
-        </View>
+        <TouchableOpacity style={styles.customButton} onPress={handleSpeak}>
+          <Text style={styles.buttonText}>Speak</Text>
+        </TouchableOpacity>
       </View>
       <ScrollView
         horizontal
@@ -788,10 +791,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     marginBottom: 10,
+    // Increased height to accommodate larger buttons
+    height: 80,
   },
-  buttonWrapper: {
+  // Removed buttonWrapper since buttons will now have their own styling
+  customButton: {
     flex: 1,
-    marginHorizontal: 5,
+    backgroundColor: "#007BFF", // Blue background
+    paddingVertical: 15, // Increased vertical padding
+    marginHorizontal: 5, // Space between buttons
+    borderRadius: 8, // Rounded corners
+    alignItems: "center",
+    justifyContent: "center",
+    // Add shadow for iOS
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    // Add elevation for Android
+    elevation: 5,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 18, // Larger font size
+    fontWeight: "bold",
   },
   scrollContainer: {
     flexGrow: 1,
@@ -809,51 +832,64 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
-    width: "80%",
+    width: "85%", // Increased width for better visibility
     maxHeight: "80%",
     backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 8,
+    padding: 25, // Increased padding
+    borderRadius: 12, // More rounded corners for a friendly look
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 24, // Increased font size
     fontWeight: "bold",
-    marginBottom: 20,
+    marginBottom: 25, // Increased margin
     textAlign: "center",
+    color: "#333", // Darker color for better readability
   },
   optionContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 15, // Increased padding
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
   },
   optionText: {
-    fontSize: 16,
+    fontSize: 18, // Increased font size
     flex: 1,
-    marginRight: 10,
+    marginRight: 15,
+    color: "#555", // Softer color
   },
   selectButton: {
     backgroundColor: "#007BFF",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 5,
+    paddingVertical: 10, // Increased vertical padding
+    paddingHorizontal: 15, // Increased horizontal padding
+    borderRadius: 8, // Rounded corners
+    elevation: 2, // Add shadow for depth (Android)
+    shadowColor: "#000", // Shadow for iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   selectButtonText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 16, // Increased font size
+    fontWeight: "bold",
   },
   cancelButton: {
-    marginTop: 20,
-    backgroundColor: "#FF3B30",
-    paddingVertical: 12,
-    borderRadius: 5,
+    marginTop: 25, // Increased margin
+    backgroundColor: "#FF3B30", // Bright red for prominence
+    paddingVertical: 15, // Increased vertical padding
+    borderRadius: 8, // Rounded corners
     alignItems: "center",
+    elevation: 3, // Add shadow for depth (Android)
+    shadowColor: "#000", // Shadow for iOS
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
   },
   cancelButtonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18, // Increased font size
     fontWeight: "bold",
   },
 });
