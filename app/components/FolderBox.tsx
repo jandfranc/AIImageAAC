@@ -95,6 +95,7 @@ const FolderBox: React.FC<FolderBoxProps> = ({
         const savedSettings = await AsyncStorage.getItem("@app_settings");
         const settings = savedSettings ? JSON.parse(savedSettings) : {};
         const savedDuration = settings.editLongPressDuration;
+        console.log("Loaded long press duration:", savedDuration);
 
         if (savedDuration) {
           setLongPressDuration(parseInt(savedDuration, 10));
@@ -227,7 +228,7 @@ const FolderBox: React.FC<FolderBoxProps> = ({
   // Determine the border color
   const borderColor = !folderDefined ? darkenColor(boxInfo.color) : (averageColor ? averageColor : faintBorderColor);
 
-  console.log(borderColor)
+  const validImage = boxInfo.image && boxInfo.image.length > 0;
 
   // Define borderWidth here for easy adjustment
   const dynamicBorderWidth = 8; // Change this value as needed
@@ -257,9 +258,8 @@ const FolderBox: React.FC<FolderBoxProps> = ({
           selected ? rotateAnimation : undefined,
         ]}
       >
-        {boxInfo.image && (
-          <Image source={{ uri: boxInfo.image }} style={styles.boxImage} />
-        )}
+        {<Image source={{ uri: boxInfo.image }} style={styles.boxImage} />}
+
         <Text style={[styles.boxText, { fontSize: size * 0.25 }]}>
           {boxInfo.text}
         </Text>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { BoxInfo } from "../types";
 import Colors from "../design/Colors";
+import { useWebSocket } from "../provider/WebSocketProvider";
+import Toast from "react-native-toast-message";
 
 interface EditBoxModalProps {
   isVisible: boolean;
@@ -22,8 +24,11 @@ interface EditBoxModalProps {
 }
 
 
+const TIMEOUT_DURATION = 10000; // 10 seconds
 
-const CreateBoxModal: React.FC<EditBoxModalProps> = ({
+
+
+const EditBoxModal: React.FC<EditBoxModalProps> = ({
     isVisible,
     onClose,
     onSave,
@@ -35,52 +40,123 @@ const CreateBoxModal: React.FC<EditBoxModalProps> = ({
     const [images, setImages] = useState<string[]>([]);
     const [selectedImage, setSelectedImage] = useState<string>(boxInfo.image);
     const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
-  
-    const pickImage = async () => {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permissionResult.granted === false) {
-        alert("Permission to access camera roll is required!");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 1,
-      });
-      if (!result.canceled) {
-        setSelectedImage(result.assets[0].uri);
-      }
-    };
-  
-    const generateAIImage = async () => {
-      try {
-        const response = await fetch("http://130.237.67.212:8000/generate-images", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: newBoxText || "Generate an image", token: "expected-token" }),
-        });
-        
-        const result = await response.json();
-        if (result.imageUrls && Array.isArray(result.imageUrls)) {
+    const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
-          setImages(result.imageUrls);
-          setSelectedImage(result.imageUrls[0]); // Default to the first image
+    
+  const webSocketContext = useWebSocket();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  if (!webSocketContext) {
+    return null;
+  }
+
+  const { messages, sendMessage, isConnected } = webSocketContext;
+
+  // Effect to handle incoming WebSocket messages for image generation
+  useEffect(() => {
+    if (isGenerating && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (
+        lastMessage.event === "GENERATE_IMAGE_response" &&
+        lastMessage.data.data.imageUrls
+      ) {
+        setImages(lastMessage.data.data.imageUrls);
+        setSelectedImage(lastMessage.data.data.imageUrls[0] || "");
+        setIsGenerating(false);
+        Toast.show({
+          type: "success",
+          text1: "Images Generated",
+          text2: "AI-generated images have been added.",
+        });
+
+        // Clear the timeout since the response was received
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
         }
-      } catch (error) {
-        console.error("AI image generation failed:", error);
-        alert("Failed to generate images. Please try again.");
+      } else if (lastMessage.event === "GENERATE_IMAGE_response" && lastMessage.data.error) {
+        setIsGenerating(false);
+        Toast.show({
+          type: "error",
+          text1: "Image Generation Failed",
+          text2: lastMessage.data.error,
+        });
+
+        // Clear the timeout since an error was received
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+      }
+    }
+  }, [messages, isGenerating]);
+
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      alert("Permission to access camera roll is required!");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0].uri);
+    }
+  };
+
+  const generateAIImage = () => {
+    if (!newBoxText.trim()) {
+      Toast.show({
+        type: "error",
+        text1: "No Text Provided",
+        text2: "Please enter text to generate images.",
+      });
+      return;
+    }
+
+    // Prepare the WebSocket message
+    const message = {
+      text: newBoxText.trim(),
+    };
+
+    // Send the message via WebSocket using custom event
+    sendMessage("GENERATE_IMAGE", message);
+
+    setIsGenerating(true);
+    Toast.show({
+      type: "info",
+      text1: "Generating Images",
+      text2: "Please wait while AI generates images...",
+    });
+
+    // Start the timeout
+    timeoutRef.current = setTimeout(() => {
+      setIsGenerating(false);
+      Toast.show({
+        type: "error",
+        text1: "Timeout",
+        text2: "Image generation is taking longer than expected. Please try again.",
+      });
+    }, TIMEOUT_DURATION);
+  };
+
+  const handleSave = () => {
+    onSave(newBoxText.trim() || "New Box", selectedColor, selectedImage);
+    onClose();
+  };
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
       }
     };
-  
-    const handleSave = () => {
-      onSave(newBoxText.trim() || "New Box", selectedColor, selectedImage);
-      setNewBoxText("");
-      setSelectedColor(Colors.Red);
-      setImages([]);
-      setSelectedImage("");
-      onClose();
-    };
+  }, []);
   
     return (
       <Modal
@@ -92,7 +168,7 @@ const CreateBoxModal: React.FC<EditBoxModalProps> = ({
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
           
-            <Text style={styles.modalTitle}>Create Box</Text>
+            <Text style={styles.modalTitle}>Edit Box</Text>
   
             {/* Add Box Section */}
             <View style={styles.addBoxContainer}>
@@ -307,4 +383,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CreateBoxModal;
+export default EditBoxModal;

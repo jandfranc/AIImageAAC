@@ -24,4 +24,5 @@ export interface AppSettings {
     boxMargin: number;
     numHorizontalBoxes: number;
     editLongPressDuration: number;
+    allowExpansion: boolean;
 }

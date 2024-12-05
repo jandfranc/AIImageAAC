@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+// src/screens/HomeScreen.tsx
+
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   TextInput,
@@ -6,6 +8,9 @@ import {
   StyleSheet,
   useWindowDimensions,
   ScrollView,
+  Modal, // Imported Modal
+  TouchableOpacity, // Imported TouchableOpacity for option buttons
+  Text, // Imported Text for option labels
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import WordBox from "../components/WordBox";
@@ -23,10 +28,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { Audio } from 'expo-av';
 import FolderBox from "../components/FolderBox";
 import axios from 'axios';
-
+import { useWebSocket } from "../provider/WebSocketProvider";
+import { Buffer } from "buffer";
 
 export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
+  const webSocketContext = useWebSocket();
+
+  const { isConnected, messages, sendMessage } = webSocketContext;
 
   // State for boxes
   const [boxes, setBoxes] = useState<BoxInfo[]>(defaultBoxes);
@@ -55,8 +64,13 @@ export default function HomeScreen() {
   const [currentOpenFolder, setCurrentOpenFolder] = useState<string | null>(null);
   const [folders, setFolders] = useState<FolderInfo[]>([]);
 
+  // Ref to track the last processed message
+  const lastProcessedMessageRef = useRef<any>(null);
 
-  
+  // New State for Predict Sentence functionality
+  const [predictOptions, setPredictOptions] = useState<string[]>([]);
+  const [isPredictModalVisible, setPredictModalVisible] = useState<boolean>(false);
+
   const loadFolderData = async () => {
     try {
       const savedFolders = await AsyncStorage.getItem("@folders_layout");
@@ -66,14 +80,14 @@ export default function HomeScreen() {
     }
   }
 
-  //folder data should be loade din startup
+  // Load folder data on startup
   useEffect(() => {
     loadFolderData();
   }, []);
 
-  // on change of folder array save to async storage
+  // Save folder data whenever it changes
   useEffect(() => {
-    console.log("saving")
+    console.log("saving folders");
     const saveData = async () => {
       try {
         await AsyncStorage.setItem("@folders_layout", JSON.stringify(folders));
@@ -94,6 +108,7 @@ export default function HomeScreen() {
 
   const handleToggle = (index: number) => {
     setSelectedButtonIndex(index);
+    console.log(index)
   };
 
   const handleOpenBarSettingsModal = () => {
@@ -207,6 +222,7 @@ export default function HomeScreen() {
         await AsyncStorage.setItem("@boxes_layout", JSON.stringify(boxes));
         await AsyncStorage.setItem("@app_settings", JSON.stringify(appSettings));
         await AsyncStorage.setItem("@toggle_buttons", JSON.stringify(toggleButtons));
+        // You can also save predictOptions if needed
       } catch (error) {
         console.error("Failed to save data:", error);
       }
@@ -225,13 +241,13 @@ export default function HomeScreen() {
       const folderIndex = folders.findIndex((folder) => folder.uuid === currentOpenFolder);
       console.log(folderIndex)
       if (folderIndex !== -1) {
-       // new id should be base don current boxes in current folder (aka same logic as below but based only on containedBoxes for the given folder)
+        // new id should be based on current boxes in current folder
         const newId = folders[folderIndex].containedBoxes.length > 0
           ? Math.max(...folders[folderIndex].containedBoxes.map((b) => b.id)) + 1
           : 1;
         const newBox: BoxInfo = {
           id: newId,
-          // type based on isfolder
+          // type based on isFolder
           type: BoxType.TalkBox,
           text,
           image,
@@ -252,18 +268,18 @@ export default function HomeScreen() {
             ...defaultBoxes.map((b) => b.id)
           ) + 1
         : 1;
-    if (isFolder) {
-      const newFolder: FolderInfo = {
-        uuid: uuid,
-        text: text,
-        containedBoxes: [],
-      };
-      setFolders((prevFolders) => [...prevFolders, newFolder]);
-      console.log(newFolder)
-    }
+      if (isFolder) {
+        const newFolder: FolderInfo = {
+          uuid: uuid,
+          text: text,
+          containedBoxes: [],
+        };
+        setFolders((prevFolders) => [...prevFolders, newFolder]);
+        console.log(newFolder)
+      }
       const newBox: BoxInfo = {
         id: newId,
-        // type based on isfolder
+        // type based on isFolder
         type: isFolder ? BoxType.FolderBox : BoxType.TalkBox,
         text,
         image,
@@ -316,7 +332,7 @@ export default function HomeScreen() {
     console.log(selectedBoxId, id);
     if (selectedBoxId !== null && id !== null) {
       if (currentOpenFolder) {
-        //Swap boxes in the current folder
+        // Swap boxes in the current folder
         const folderIndex = folders.findIndex((folder) => folder.uuid === currentOpenFolder);
         if (folderIndex !== -1) {
           const sourceBox = folders[folderIndex].containedBoxes.find((box) => box.id === selectedBoxId);
@@ -333,10 +349,10 @@ export default function HomeScreen() {
             updatedFolders[folderIndex] = updatedFolder;
             setFolders(updatedFolders);
           }
-        }}
+        }
+      }
       else {
         swapBoxes(selectedBoxId, id);
-
       }
       setSelectedBoxId(null);
       return;
@@ -351,7 +367,7 @@ export default function HomeScreen() {
     }
     else {
       if (currentOpenFolder) {
-        // same as below but needs to get it from containedBoxes for the current folder
+        // Get box from containedBoxes for the current folder
         const folderIndex = folders.findIndex((folder) => folder.uuid === currentOpenFolder);
         if (folderIndex !== -1) {
           const box = folders[folderIndex].containedBoxes.find((box) => box.id === id);
@@ -367,7 +383,7 @@ export default function HomeScreen() {
           topText + (topText ? " " : "") + (boxes.find((box) => box.id === id)?.text || "")
         );  
       }
-        }
+    }
     
   };
 
@@ -394,66 +410,178 @@ export default function HomeScreen() {
     setTopText(topText.slice(0, -1));
   };
 
-  const handleSpeak = async () => {
-    const selectedUri = toggleButtons[selectedButtonIndex]?.uri;
-  
-    if (!selectedUri) {
-      Toast.show({
-        type: "error",
-        text1: "No voice selected",
-        text2: "Please select a voice using the toggle bar.",
-      });
-      return;
-    }
-  
+  // Updated Handler for "Predict Sentence" to use PREDICT endpoint
+  const handlePredictSentence = () => {
     if (!topText.trim()) {
       Toast.show({
         type: "error",
-        text1: "No text to speak",
-        text2: "Please enter text to synthesize.",
+        text1: "No text to predict",
+        text2: "Please enter text to predict sentence expansion.",
       });
       return;
     }
-  
-    try {
-      // Show a loading toast
-      Toast.show({
-        type: "info",
-        text1: "Generating audio",
-        text2: "Please wait while the audio is being generated...",
-      });
-  
-      // Make the TTS API request
-      const response = await axios.post("http://130.237.67.212:8000/tts", {
-        audio_url: selectedUri,
+
+    Toast.show({
+      type: "info",
+      text1: "Predicting Sentence",
+      text2: "Requesting sentence prediction...",
+    });
+
+    // Prepare the WebSocket message
+    const message = {
+      request_type: "PREDICT",
+      data: {
         text: topText,
-      }, {
-        headers: {
-          token: "expected-token", // Replace with your actual token
-        },
-      });
-  
-      const { audioUrl } = response.data;
-  
-      // Play the audio
+      },
+    };
+
+    // Send the message via WebSocket
+    sendMessage("PREDICT", message);
+  };
+
+  const handleSelectPredictOption = (option: string) => {
+    // Replace the entire topText with the selected option
+    setTopText(option);
+    setPredictOptions([]);
+    setPredictModalVisible(false);
+    Toast.show({
+      type: "success",
+      text1: "Sentence Predicted",
+      text2: "The sentence has been updated successfully.",
+    });
+  };
+
+  const handleSpeak = async () => {
+    console.log(toggleButtons);
+    const selectedUri = toggleButtons[selectedButtonIndex]?.uri;
+
+    if (!selectedUri) {
+        Toast.show({
+            type: "error",
+            text1: "No voice selected",
+            text2: "Please select a voice using the toggle bar.",
+        });
+        return;
+    }
+
+    if (!topText.trim()) {
+        Toast.show({
+            type: "error",
+            text1: "No text to speak",
+            text2: "Please enter text to synthesize.",
+        });
+        return;
+    }
+
+    if (!isConnected) {
+        Toast.show({
+            type: "error",
+            text1: "WebSocket Disconnected",
+            text2: "Please wait while the connection is re-established.",
+        });
+        return;
+    }
+
+    try {
+        Toast.show({
+            type: "info",
+            text1: "Generating audio",
+            text2: "Please wait while the audio is being generated...",
+        });
+
+        
+        // Prepare the WebSocket message
+        const message = {
+          data: {
+                audio_file: selectedUri, // Base64-encoded audio file
+                text: topText,
+            },
+        };
+
+        // Send the message via WebSocket
+        sendMessage("SYNTHESISE", message);
+
+    } catch (error) {
+        console.error("Error generating audio:", error);
+        Toast.show({
+            type: "error",
+            text1: "Error generating audio",
+        });
+    }
+};
+
+// Listen for messages from WebSocket
+useEffect(() => {
+  if (messages.length > 0) {
+    const lastMessage = messages[messages.length - 1];
+
+    // Check if this message has already been processed
+    if (lastProcessedMessageRef.current !== lastMessage) {
+      // Handle SYNTHESISE response
+      if (
+        lastMessage.data.request_type === "SYNTHESISE" &&
+        lastMessage.data.data.audio_url
+      ) {
+        console.log("Playing audio...");
+        playAudio(lastMessage.data.data.audio_url);
+        Toast.show({
+          type: "success",
+          text1: "Audio generated",
+          text2: "Playing the generated audio.",
+        });
+      }
+      // Handle PREDICT response
+      else if (
+        lastMessage.data.request_type === "PREDICT" &&
+        lastMessage.data.data.options
+      ) {
+        console.log("Received predict sentence options:", lastMessage.data.data.options);
+        setPredictOptions(lastMessage.data.data.options);
+        setPredictModalVisible(true);
+        Toast.show({
+          type: "success",
+          text1: "Sentence Prediction",
+          text2: "Choose an option to update your sentence.",
+        });
+      }
+      // Handle errors for PREDICT
+      else if (
+        lastMessage.data.request_type === "PREDICT" &&
+        lastMessage.error
+      ) {
+        Toast.show({
+          type: "error",
+          text1: "Error Predicting Sentence",
+          text2: lastMessage.error,
+        });
+      }
+      // Handle other responses
+      else if (lastMessage.error) {
+        Toast.show({
+          type: "error",
+          text1: "Error",
+          text2: lastMessage.error,
+        });
+      }
+
+      // Update the ref to mark this message as processed
+      lastProcessedMessageRef.current = lastMessage;
+    }
+  }
+}, [messages]);
+
+const playAudio = async (audioUrl: any) => {
+  try {
       const { sound } = await Audio.Sound.createAsync({ uri: audioUrl });
       await sound.playAsync();
-  
-      // Show success toast
+  } catch (error) {
+      console.error("Error playing audio:", error);
       Toast.show({
-        type: "success",
-        text1: "Audio generated",
-        text2: "Playing the generated audio.",
+          type: "error",
+          text1: "Error playing audio",
       });
-    } catch (error) {
-      console.error("Error during text-to-speech:", error);
-      Toast.show({
-        type: "error",
-        text1: "Error generating audio",
-        text2: "Something went wrong. Please try again.",
-      });
-    }
-  };
+  }
+};
 
   return (
     <View style={[styles.container, { padding: appSettings.boxMargin / 2 }]}>
@@ -487,6 +615,14 @@ export default function HomeScreen() {
         <View style={styles.buttonWrapper}>
           <Button title="Delete Letter" onPress={handleDeleteLetter} />
         </View>
+        
+        {/* Conditionally Render the "Expand Sentence" Button */}
+        {appSettings.allowExpansion && (
+          <View style={styles.buttonWrapper}>
+            <Button title="Expand Sentence" onPress={handlePredictSentence} />
+          </View>
+        )}
+        
         <View style={styles.buttonWrapper}>
           <Button title="Speak" onPress={handleSpeak} />
         </View>
@@ -530,15 +666,14 @@ export default function HomeScreen() {
               )
             ))}
             {pageIndex === numPages - 1 && (
-              <>
-
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <AddBox
                   boxSize={boxSize}
                   margin={appSettings.boxMargin}
                   onAdd={handleAddNewBox}
                   deletedBoxes={deletedBoxes}
                   onReAdd={handleReAdd}
-                  isFolderOpen = {currentOpenFolder !== null}
+                  isFolderOpen={currentOpenFolder !== null}
                 />
                 {!currentOpenFolder && (
                   <>
@@ -564,7 +699,7 @@ export default function HomeScreen() {
                     iconName="close"
                   />
                 )}
-              </>
+              </View>
             )}
           </View>
         ))}
@@ -589,6 +724,41 @@ export default function HomeScreen() {
           currentSettings={appSettings}
         />
       )}
+
+      {/* Predict Options Modal */}
+      <Modal
+        visible={isPredictModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPredictModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Choose a Prediction</Text>
+            <ScrollView>
+              {predictOptions.map((option, index) => (
+                <View key={index} style={styles.optionContainer}>
+                  <Text style={styles.optionText}>{option}</Text>
+                  <TouchableOpacity
+                    style={styles.selectButton}
+                    onPress={() => handleSelectPredictOption(option)}
+                  >
+                    <Text style={styles.selectButtonText}>Select</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+            {/* Large Cancel Button */}
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setPredictModalVisible(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Toast />
     </View>
   );
@@ -598,6 +768,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   textBox: {
     height: 110,
@@ -624,5 +799,61 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "flex-start",
+  },
+  // Styles for Predict Options Modal
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    width: "80%",
+    maxHeight: "80%",
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 8,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  optionContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  optionText: {
+    fontSize: 16,
+    flex: 1,
+    marginRight: 10,
+  },
+  selectButton: {
+    backgroundColor: "#007BFF",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+  },
+  selectButtonText: {
+    color: "#fff",
+    fontSize: 14,
+  },
+  cancelButton: {
+    marginTop: 20,
+    backgroundColor: "#FF3B30",
+    paddingVertical: 12,
+    borderRadius: 5,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

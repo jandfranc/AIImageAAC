@@ -1,4 +1,3 @@
-// src/components/SettingsModal.tsx
 
 import React, { useState, useEffect } from "react";
 import {
@@ -8,12 +7,13 @@ import {
   Modal,
   Button,
   ScrollView,
+  Switch, // Imported Switch
   Platform,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { AppSettings } from "../types";
 import { defaultSettings } from "../data/defaultSettings";
-import Toast from "react-native-toast-message"; // Import Toast
+import Toast from "react-native-toast-message";
 
 interface SettingsModalProps {
   isVisible: boolean;
@@ -35,6 +35,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [editLongPressDuration, setEditLongPressDuration] = useState<number>(
     currentSettings.editLongPressDuration
   );
+  const [allowExpansion, setAllowExpansion] = useState<boolean>(currentSettings.allowExpansion); // New state
   const [isValid, setIsValid] = useState<boolean>(true);
 
   // Update state when currentSettings change or modal is opened
@@ -42,6 +43,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     if (isVisible) {
       setBoxMargin(currentSettings.boxMargin);
       setNumHorizontalBoxes(currentSettings.numHorizontalBoxes);
+      setEditLongPressDuration(currentSettings.editLongPressDuration);
+      setAllowExpansion(currentSettings.allowExpansion); // Reset allowExpansion
     }
   }, [currentSettings, isVisible]);
 
@@ -50,8 +53,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const validBoxMargin = boxMargin >= 0 && boxMargin <= 50;
     const validNumBoxes = numHorizontalBoxes >= 1 && numHorizontalBoxes <= 20;
     const validEditLongPressDuration = editLongPressDuration >= 300 && editLongPressDuration <= 2000;
-    setIsValid(validBoxMargin && validNumBoxes);
-  }, [boxMargin, numHorizontalBoxes]);
+    setIsValid(validBoxMargin && validNumBoxes && validEditLongPressDuration);
+  }, [boxMargin, numHorizontalBoxes, editLongPressDuration]);
 
   const handleSave = () => {
     if (!isValid) {
@@ -67,6 +70,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       boxMargin: boxMargin,
       numHorizontalBoxes: numHorizontalBoxes,
       editLongPressDuration: editLongPressDuration,
+      allowExpansion: allowExpansion, // Include the new setting
     };
     onSave(newSettings);
     onClose();
@@ -80,7 +84,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleReset = () => {
-    // Confirmation Toas
+    // Confirmation Toast
     Toast.show({
       type: 'info',
       text1: 'Reset Settings',
@@ -91,8 +95,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     setBoxMargin(defaultSettings.boxMargin);
     setNumHorizontalBoxes(defaultSettings.numHorizontalBoxes);
     setEditLongPressDuration(defaultSettings.editLongPressDuration);
+    setAllowExpansion(defaultSettings.allowExpansion); // Reset the new setting
 
-    // Optionally, save the reset settings immediately
+    // Save the reset settings
     onSave(defaultSettings);
     onClose();
   };
@@ -152,7 +157,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               />
             </View>
 
-
+            {/* Allow Expansion Toggle */}
+            <View >
+              <Text style={styles.label}>Allow Expansion</Text>
+              <Switch
+                value={allowExpansion}
+                onValueChange={(value) => setAllowExpansion(value)}
+                trackColor={{ false: "#767577", true: "#81b0ff" }}
+                thumbColor={allowExpansion ? "#f5dd4b" : "#f4f3f4"}
+              />
+            </View>
           </ScrollView>
 
           {/* Action Buttons */}
@@ -205,6 +219,12 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     marginBottom: 5,
+  },
+  toggleContainer: { // New style
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
   modalButtons: {
     flexDirection: "row",
