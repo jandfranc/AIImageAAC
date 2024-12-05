@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "./screens/HomeScreen";
 import DetailsScreen from "./screens/DetailsScreen";
+import { WebSocketProvider } from "./provider/WebSocketProvider";
 
 // Define the type of your navigation stack
 export type RootStackParamList = {
@@ -14,7 +15,8 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Index() {
   return (
-      <Stack.Navigator initialRouteName="Home">
+  <WebSocketProvider socketUrl="http://130.237.67.212:8000/">
+    <Stack.Navigator initialRouteName="Home">
         <Stack.Screen name="Home" component={HomeScreen} options={{
           headerShown: false,
         }}/>
@@ -22,5 +24,6 @@ export default function Index() {
           headerShown: false,
         }}/>
       </Stack.Navigator>
+    </WebSocketProvider>
   );
 }
