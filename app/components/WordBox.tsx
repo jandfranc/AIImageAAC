@@ -19,6 +19,8 @@ interface BoxProps {
   boxInfo: BoxInfo;
   onSelect: (id: number | null) => void;
   onLongSelect: (id: number) => void;
+  delayLongPress: number;
+  lockEditing: boolean;
   onDelete: (id: number) => void;
   onEdit: (id: number) => void;
 }
@@ -30,30 +32,15 @@ const WordBox: React.FC<BoxProps> = ({
   selected,
   onSelect,
   onLongSelect,
+  delayLongPress,
+  lockEditing,
   onDelete,
   onEdit,
   boxInfo,
 }) => {
   const animation = useRef(new Animated.Value(0)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const [longPressDuration, setLongPressDuration] = useState(1000); // Default to 1000ms
 
-  useEffect(() => {
-    const loadLongPressDuration = async () => {
-      try {
-        const savedSettings = await AsyncStorage.getItem("@app_settings");
-        const settings = savedSettings ? JSON.parse(savedSettings) : {};
-        const savedDuration = settings.editLongPressDuration;
-
-        if (savedDuration) {
-          setLongPressDuration(parseInt(savedDuration, 10));
-        }
-      } catch (error) {
-        console.error("Failed to load long press duration:", error);
-      }
-    };
-    loadLongPressDuration();
-  }, []);
 
   useEffect(() => {
     if (selected) {
@@ -99,6 +86,7 @@ const WordBox: React.FC<BoxProps> = ({
     ],
   };
 
+
   return (
     <TouchableOpacity
       style={[
@@ -108,7 +96,7 @@ const WordBox: React.FC<BoxProps> = ({
           margin,
         },
       ]}
-      onLongPress={() => onLongSelect(id)}
+      onLongPress={() => lockEditing ? undefined : onLongSelect(id)}
       onPress={() => {
         if (selected) {
           onSelect(id);
@@ -116,7 +104,7 @@ const WordBox: React.FC<BoxProps> = ({
           onSelect(id);
         }
       }}
-      delayLongPress={longPressDuration} // Use the loaded duration
+      delayLongPress={delayLongPress} 
     >
       <Animated.View
         style={[

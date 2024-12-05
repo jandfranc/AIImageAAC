@@ -5,4 +5,5 @@ export const defaultSettings: AppSettings = {
   numHorizontalBoxes: 10,
   editLongPressDuration: 1000,
   allowExpansion: false,
+  lockEditing: false,
 };

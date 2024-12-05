@@ -51,6 +51,7 @@ export default function HomeScreen() {
   // State for app settings
   const [appSettings, setAppSettings] = useState<AppSettings>(defaultSettings);
 
+
   // State for toggle buttons
   const [toggleButtons, setToggleButtons] = useState<{ text: string; uri: string | null }[]>([
     { text: "Option 1", uri: null },
@@ -649,9 +650,12 @@ const playAudio = async (audioUrl: any) => {
                   selected={box.id === selectedBoxId}
                   onSelect={handleSelect}
                   onLongSelect={handleLongSelect}
+                  delayLongPress={appSettings.editLongPressDuration}
+                  lockEditing={appSettings.lockEditing}
                   onDelete={handleDelete}
                   onEdit={handleEdit}
                   boxInfo={box}
+                  
                 />
               ) : (
                 <FolderBox
@@ -662,6 +666,8 @@ const playAudio = async (audioUrl: any) => {
                   selected={box.id === selectedBoxId}
                   onSelect={handleSelect}
                   onLongSelect={handleLongSelect}
+                  delayLongPress={appSettings.editLongPressDuration}
+                  lockEditing={appSettings.lockEditing}
                   onDelete={handleDelete}
                   onEdit={handleEdit}
                   boxInfo={box}
@@ -678,22 +684,25 @@ const playAudio = async (audioUrl: any) => {
                   onReAdd={handleReAdd}
                   isFolderOpen={currentOpenFolder !== null}
                 />
-                {!currentOpenFolder && (
-                  <>
-                    <GenericBox
+                {!currentOpenFolder && !appSettings.lockEditing && (
+                      <GenericBox
                       boxSize={boxSize}
                       margin={appSettings.boxMargin}
                       onPress={handleResetBoxes}
+                      onLongPress={handleResetBoxes}
+                      delayLongPress={5000}
                       iconName="refresh"
-                    />
+                      />
+                    )}
                     <GenericBox
                       boxSize={boxSize}
                       margin={appSettings.boxMargin}
-                      onPress={handleOpenSettingsModal}
+                      onPress={appSettings.lockEditing ? () => {} : handleOpenSettingsModal}
+                      onLongPress={appSettings.lockEditing ? handleOpenSettingsModal : undefined}
+                      delayLongPress={5000}
                       iconName="settings"
                     />
-                  </>
-                )}
+                
                 {currentOpenFolder && (
                   <GenericBox
                     boxSize={boxSize}

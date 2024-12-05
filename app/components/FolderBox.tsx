@@ -69,6 +69,8 @@ interface FolderBoxProps {
   boxInfo: BoxInfo;
   onSelect: (id: number | null, uuid: string) => void;
   onLongSelect: (id: number) => void;
+  delayLongPress: number; // Optional delay for long press
+  lockEditing: boolean; // Optional lock editing flag
   onDelete: (id: number) => void;
   onEdit: (id: number) => void;
 }
@@ -80,32 +82,16 @@ const FolderBox: React.FC<FolderBoxProps> = ({
   selected,
   onSelect,
   onLongSelect,
+  delayLongPress,
+  lockEditing,
   onDelete,
   onEdit,
   boxInfo,
 }) => {
   const animation = useRef(new Animated.Value(0)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
-  const [longPressDuration, setLongPressDuration] = useState(1000); // Default to 1000ms
   const [averageColor, setAverageColor] = useState<string | null>(null); // State for average color
 
-  useEffect(() => {
-    const loadLongPressDuration = async () => {
-      try {
-        const savedSettings = await AsyncStorage.getItem("@app_settings");
-        const settings = savedSettings ? JSON.parse(savedSettings) : {};
-        const savedDuration = settings.editLongPressDuration;
-        console.log("Loaded long press duration:", savedDuration);
-
-        if (savedDuration) {
-          setLongPressDuration(parseInt(savedDuration, 10));
-        }
-      } catch (error) {
-        console.error("Failed to load long press duration:", error);
-      }
-    };
-    loadLongPressDuration();
-  }, []);
 
   useEffect(() => {
     if (selected) {
@@ -240,9 +226,9 @@ const FolderBox: React.FC<FolderBoxProps> = ({
         height: size,
         margin,
       }}
-      onLongPress={() => onLongSelect(id)}
+      onLongPress={() => lockEditing ? undefined : onLongSelect(id)}
       onPress={() => onSelect(id, boxInfo.folderId ?? "")}
-      delayLongPress={longPressDuration} // Use the loaded duration
+      delayLongPress={delayLongPress} // Use the loaded duration
     >
       <Animated.View
         style={[

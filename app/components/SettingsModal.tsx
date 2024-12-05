@@ -35,16 +35,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [editLongPressDuration, setEditLongPressDuration] = useState<number>(
     currentSettings.editLongPressDuration
   );
-  const [allowExpansion, setAllowExpansion] = useState<boolean>(currentSettings.allowExpansion); // New state
+  const [allowExpansion, setAllowExpansion] = useState<boolean>(currentSettings.allowExpansion);
+  const [lockEditing, setLockEditing] = useState<boolean>(currentSettings.lockEditing); 
   const [isValid, setIsValid] = useState<boolean>(true);
 
-  // Update state when currentSettings change or modal is opened
   useEffect(() => {
     if (isVisible) {
       setBoxMargin(currentSettings.boxMargin);
       setNumHorizontalBoxes(currentSettings.numHorizontalBoxes);
       setEditLongPressDuration(currentSettings.editLongPressDuration);
-      setAllowExpansion(currentSettings.allowExpansion); // Reset allowExpansion
+      setAllowExpansion(currentSettings.allowExpansion); 
+      setLockEditing(currentSettings.lockEditing);
+      
     }
   }, [currentSettings, isVisible]);
 
@@ -70,7 +72,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       boxMargin: boxMargin,
       numHorizontalBoxes: numHorizontalBoxes,
       editLongPressDuration: editLongPressDuration,
-      allowExpansion: allowExpansion, // Include the new setting
+      allowExpansion: allowExpansion,
+      lockEditing: lockEditing, 
     };
     onSave(newSettings);
     onClose();
@@ -95,7 +98,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     setBoxMargin(defaultSettings.boxMargin);
     setNumHorizontalBoxes(defaultSettings.numHorizontalBoxes);
     setEditLongPressDuration(defaultSettings.editLongPressDuration);
-    setAllowExpansion(defaultSettings.allowExpansion); // Reset the new setting
+    setAllowExpansion(defaultSettings.allowExpansion); 
+    setLockEditing(defaultSettings.lockEditing);
 
     // Save the reset settings
     onSave(defaultSettings);
@@ -163,6 +167,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               <Switch
                 value={allowExpansion}
                 onValueChange={(value) => setAllowExpansion(value)}
+                trackColor={{ false: "#767577", true: "#81b0ff" }}
+                thumbColor={allowExpansion ? "#f5dd4b" : "#f4f3f4"}
+              />
+            </View>
+            <View style={styles.sliderContainer}>
+              <Text style={styles.label}>Lock Editing</Text>
+              <Switch
+                value={lockEditing}
+                onValueChange={(value) => setLockEditing(value)}
                 trackColor={{ false: "#767577", true: "#81b0ff" }}
                 thumbColor={allowExpansion ? "#f5dd4b" : "#f4f3f4"}
               />

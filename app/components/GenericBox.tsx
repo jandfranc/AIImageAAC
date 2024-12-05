@@ -7,6 +7,8 @@ interface GenericBoxProps {
   boxSize: number;
   margin: number;
   onPress: () => void;
+  onLongPress?: () => void; // Optional onLongPress handler
+  delayLongPress?: number; // Optional delay for long press
   label?: string; // Optional label for the box
   iconName?: string; // Optional Material Icon name
   boxStyle?: ViewStyle; // Customizable box style
@@ -17,6 +19,7 @@ const GenericBox: React.FC<GenericBoxProps> = ({
   boxSize,
   margin,
   onPress,
+  onLongPress,
   label = "+",
   iconName,
   boxStyle,
@@ -30,10 +33,11 @@ const GenericBox: React.FC<GenericBoxProps> = ({
         boxStyle,
       ]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={onLongPress ? 5000 : undefined}
     >
       {iconName ? (
         <MaterialIcons name={iconName} size={boxSize / 2} color="white" style={[styles.icon, labelStyle]}/>
-
       ) : (
         <Text style={[styles.label]}>{label}</Text>
       )}

@@ -25,4 +25,5 @@ export interface AppSettings {
     numHorizontalBoxes: number;
     editLongPressDuration: number;
     allowExpansion: boolean;
+    lockEditing: boolean;
 }
