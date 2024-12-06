@@ -34,9 +34,10 @@ interface GenerateImageResponse {
   data: {
     imageUrls: string[];
   };
+  requestId: string;
 }
 
-const TIMEOUT_DURATION = 10000; // 10 seconds
+const TIMEOUT_DURATION = 30000; // 30 seconds
 
 const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
   isVisible,
@@ -53,10 +54,12 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
   const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
   const [isFolder, setIsFolder] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null); // New state
 
   const webSocketContext = useWebSocket();
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastProcessedMessageRef = useRef<number>(0); // Track the last processed message index
 
   if (!webSocketContext) {
     // Optionally, render a loading indicator or disable functionalities
@@ -67,43 +70,66 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
 
   // Effect to handle incoming WebSocket messages for image generation
   useEffect(() => {
-    if (isGenerating && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      console.log(lastMessage.data.data.imageUrls)
-      if (
-        lastMessage.event === "GENERATE_IMAGE_response" &&
-        lastMessage.data.data.imageUrls
-      ) {
-        setSelectedImage(lastMessage.data.data.imageUrls[0] || "");
-        setImages(lastMessage.data.data.imageUrls);
-        setIsGenerating(false);
-        Toast.show({
-          type: "success",
-          text1: "Images Generated",
-          text2: "AI-generated images have been added.",
-        });
+    if (isGenerating && messages.length > lastProcessedMessageRef.current) {
+      for (let i = lastProcessedMessageRef.current; i < messages.length; i++) {
+        const message = messages[i];
+        if (message.event === "GENERATE_IMAGE_response") {
+          const response: GenerateImageResponse = message.data;
 
-        // Clear the timeout since the response was received
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-      } else if (lastMessage.event === "GENERATE_IMAGE_response" && lastMessage.data.error) {
-        setIsGenerating(false);
-        Toast.show({
-          type: "error",
-          text1: "Image Generation Failed",
-          text2: lastMessage.data.error,
-        });
+          // Validate requestId
+          if (response.requestId !== currentRequestId) {
+            console.warn(`Received response for requestId ${response.requestId}, but currentRequestId is ${currentRequestId}. Ignoring.`);
+            continue; // Skip processing this message
+          }
 
-        // Clear the timeout since an error was received
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
+          if (response.data.imageUrls) {
+            setSelectedImage(response.data.imageUrls[0] || "");
+            setImages(response.data.imageUrls);
+            console.log("Images generated:", response.data.imageUrls);
+            setIsGenerating(false);
+            Toast.show({
+              type: "success",
+              text1: "Images Generated",
+              text2: "AI-generated images have been added.",
+            });
+
+            // Clear the timeout since the response was received
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+
+            // Reset currentRequestId
+            setCurrentRequestId(null);
+
+            // Update the last processed message index
+            lastProcessedMessageRef.current = i + 1;
+            break; // Exit after processing the relevant message
+          } else if (response.data.error) {
+            setIsGenerating(false);
+            Toast.show({
+              type: "error",
+              text1: "Image Generation Failed",
+              text2: response.data.error,
+            });
+
+            // Clear the timeout since an error was received
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+
+            // Reset currentRequestId
+            setCurrentRequestId(null);
+
+            // Update the last processed message index
+            lastProcessedMessageRef.current = i + 1;
+            break; // Exit after processing the relevant message
+          }
         }
       }
     }
-  }, [messages, isGenerating]);
+  }, [messages, isGenerating, currentRequestId]);
 
   const pickImage = async () => {
     const permissionResult =
@@ -133,15 +159,20 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
       return;
     }
 
+    // Generate a unique requestId
+    const newRequestId = uuidv4();
+
     // Prepare the WebSocket message
     const message = {
       text: newBoxText.trim(),
+      requestId: newRequestId,
     };
 
     // Send the message via WebSocket using custom event
     sendMessage('GENERATE_IMAGE', message);
 
     setIsGenerating(true);
+    setCurrentRequestId(newRequestId); // Store the current requestId
     Toast.show({
       type: "info",
       text1: "Generating Images",
@@ -150,12 +181,15 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
 
     // Start the timeout
     timeoutRef.current = setTimeout(() => {
-      setIsGenerating(false);
-      Toast.show({
-        type: "error",
-        text1: "Timeout",
-        text2: "Image generation is taking longer than expected. Please try again.",
-      });
+      if (currentRequestId === newRequestId) { // Ensure timeout corresponds to the current request
+        setIsGenerating(false);
+        setCurrentRequestId(null);
+        Toast.show({
+          type: "error",
+          text1: "Timeout",
+          text2: "Image generation is taking longer than expected. Please try again.",
+        });
+      }
     }, TIMEOUT_DURATION);
   };
 
@@ -176,6 +210,18 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
     setSelectedImage("");
     setIsFolder(false);
     onClose();
+
+    // Reset the last processed message index if needed
+    lastProcessedMessageRef.current = messages.length;
+
+    // Clear any ongoing requestId and timeout
+    if (currentRequestId) {
+      setCurrentRequestId(null);
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
   };
 
   // Cleanup on component unmount
@@ -184,6 +230,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+      setCurrentRequestId(null);
     };
   }, []);
 
