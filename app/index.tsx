@@ -1,5 +1,5 @@
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, LinkingOptions } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "./screens/HomeScreen";
 import DetailsScreen from "./screens/DetailsScreen";
@@ -13,17 +13,21 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Define linking configuration
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ["localhost:8081"], // Add your domain
+  config: {
+    screens: {
+      Home: "",          // Maps to the base URL '/'
+      Details: "details", // Maps to '/details'
+    },
+  },
+};
+
 export default function Index() {
   return (
-  <WebSocketProvider socketUrl="http://130.237.67.212:8000/">
-    <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen name="Home" component={HomeScreen} options={{
-          headerShown: false,
-        }}/>
-        <Stack.Screen name="Details" component={DetailsScreen} options={{
-          headerShown: false,
-        }}/>
-      </Stack.Navigator>
+    <WebSocketProvider socketUrl="http://130.237.67.212:8000/">
+      <HomeScreen/>
     </WebSocketProvider>
   );
 }
