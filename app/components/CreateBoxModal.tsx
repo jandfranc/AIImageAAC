@@ -14,11 +14,12 @@ import {
   Switch,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import ColorPicker, { HueSlider, Panel1 } from "reanimated-color-picker"; // Updated import
 import { BoxInfo } from "../types";
 import Colors from "../design/Colors";
 import { useWebSocket } from "../provider/WebSocketProvider";
 import Toast from "react-native-toast-message";
-import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed
+import { v4 as uuidv4 } from "uuid";
 
 interface CreateBoxModalProps {
   isVisible: boolean;
@@ -33,6 +34,7 @@ interface GenerateImageResponse {
   request_type: "GENERATE_IMAGE";
   data: {
     imageUrls: string[];
+    error?: string;
   };
   requestId: string;
 }
@@ -54,21 +56,24 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
   const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
   const [isFolder, setIsFolder] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null); // New state
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
+  const [colorWheelVisible, setColorWheelVisible] = useState<boolean>(false); // New state for color picker
 
   const webSocketContext = useWebSocket();
 
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastProcessedMessageRef = useRef<number>(0); // Track the last processed message index
+  const lastProcessedMessageRef = useRef<number>(0);
 
   if (!webSocketContext) {
-    // Optionally, render a loading indicator or disable functionalities
     return null;
   }
 
-  const { messages, sendMessage, isConnected, connectionStatus } = webSocketContext;
+  const { messages, sendMessage, isConnected } = webSocketContext;
 
-  // Effect to handle incoming WebSocket messages for image generation
+  const predefinedColors = Object.values(Colors);
+  const isSelectedColorPredefined = predefinedColors.includes(selectedColor);
+
+  // Handle incoming WebSocket messages for image generation
   useEffect(() => {
     if (isGenerating && messages.length > lastProcessedMessageRef.current) {
       for (let i = lastProcessedMessageRef.current; i < messages.length; i++) {
@@ -78,14 +83,15 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
 
           // Validate requestId
           if (response.requestId !== currentRequestId) {
-            console.warn(`Received response for requestId ${response.requestId}, but currentRequestId is ${currentRequestId}. Ignoring.`);
-            continue; // Skip processing this message
+            console.warn(
+              `Received response for requestId ${response.requestId}, but currentRequestId is ${currentRequestId}. Ignoring.`
+            );
+            continue;
           }
 
-          if (response.data.imageUrls) {
-            setSelectedImage(response.data.imageUrls[0] || "");
+          if (response.data.imageUrls && response.data.imageUrls.length > 0) {
             setImages(response.data.imageUrls);
-            console.log("Images generated:", response.data.imageUrls);
+            setSelectedImage(response.data.imageUrls[0]);
             setIsGenerating(false);
             Toast.show({
               type: "success",
@@ -104,7 +110,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
 
             // Update the last processed message index
             lastProcessedMessageRef.current = i + 1;
-            break; // Exit after processing the relevant message
+            break;
           } else if (response.data.error) {
             setIsGenerating(false);
             Toast.show({
@@ -124,7 +130,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
 
             // Update the last processed message index
             lastProcessedMessageRef.current = i + 1;
-            break; // Exit after processing the relevant message
+            break;
           }
         }
       }
@@ -132,8 +138,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
   }, [messages, isGenerating, currentRequestId]);
 
   const pickImage = async () => {
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permissionResult.granted === false) {
       alert("Permission to access camera roll is required!");
       return;
@@ -169,10 +174,10 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
     };
 
     // Send the message via WebSocket using custom event
-    sendMessage('GENERATE_IMAGE', message);
+    sendMessage("GENERATE_IMAGE", message);
 
     setIsGenerating(true);
-    setCurrentRequestId(newRequestId); // Store the current requestId
+    setCurrentRequestId(newRequestId);
     Toast.show({
       type: "info",
       text1: "Generating Images",
@@ -181,7 +186,7 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
 
     // Start the timeout
     timeoutRef.current = setTimeout(() => {
-      if (currentRequestId === newRequestId) { // Ensure timeout corresponds to the current request
+      if (currentRequestId === newRequestId) {
         setIsGenerating(false);
         setCurrentRequestId(null);
         Toast.show({
@@ -194,16 +199,23 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
   };
 
   const handleAdd = () => {
-    if (!selectedImage) {
+    // Allow adding even if no image is selected
+    // Ensure that either an image is selected or a color is chosen
+    if (!selectedImage && !selectedColor) {
       Toast.show({
         type: "error",
-        text1: "No Image Selected",
-        text2: "Please select or generate an image for the box.",
+        text1: "No Selection",
+        text2: "Please select a color or an image for the box.",
       });
       return;
     }
 
-    onAdd(newBoxText.trim() || "New Box", selectedColor, selectedImage, isFolder);
+    onAdd(
+      newBoxText.trim() || "New Box",
+      selectedColor,
+      selectedImage || "", // Pass an empty string if no image is selected
+      isFolder
+    );
     setNewBoxText("");
     setSelectedColor(Colors.Red);
     setImages([]);
@@ -222,6 +234,11 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+  };
+
+  const handleColorChange = (color: { hex: string }) => {
+    setSelectedColor(color.hex);
+    // Removed setColorWheelVisible(false) to prevent auto-closing
   };
 
   // Cleanup on component unmount
@@ -280,9 +297,10 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
             />
             <Text style={styles.label}>Select Color:</Text>
             <View style={styles.colorSelector}>
-              {Object.values(Colors).map((color: string) => (
+              {predefinedColors.map((color: string) => (
                 <TouchableOpacity
                   key={color}
+                  accessibilityLabel={`Select color ${color}`}
                   style={[
                     styles.colorOption,
                     { backgroundColor: color },
@@ -291,14 +309,48 @@ const CreateBoxModal: React.FC<CreateBoxModalProps> = ({
                   onPress={() => setSelectedColor(color)}
                 />
               ))}
+
+              {!isSelectedColorPredefined && selectedColor && (
+                <TouchableOpacity
+                  accessibilityLabel={`Selected color ${selectedColor}`}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: selectedColor },
+                    styles.selectedColor, // Highlight the selected color
+                  ]}
+                  onPress={() => {}}
+                />
+              )}
+
+              <TouchableOpacity
+                accessibilityLabel="Pick a custom color"
+                style={[styles.colorOption, styles.customColorButton]}
+                onPress={() => setColorWheelVisible(true)}
+              >
+                <Text style={styles.customColorText}>+</Text>
+              </TouchableOpacity>
             </View>
+            {colorWheelVisible && (
+              <View style={styles.colorPickerContainer}>
+                <ColorPicker
+                  value={selectedColor}
+                  onChange={handleColorChange}
+                  style={styles.colorPicker}
+                >
+                  <Panel1 />
+                  <HueSlider />
+                </ColorPicker>
+                <Button
+                  title="Done"
+                  onPress={() => setColorWheelVisible(false)} // Allows users to manually close the color picker
+                />
+              </View>
+            )}
             {!isFolderOpen && (
-              <>
-                <View style={styles.switchContainer}>
-                  <Text style={styles.label}>Is this a folder?</Text>
-                  <Switch value={isFolder} onValueChange={setIsFolder} />
-                </View>
-              </>
+              <View style={styles.switchContainer}>
+                <Text style={styles.label}>Is this a folder?</Text>
+                <Switch value={isFolder} onValueChange={setIsFolder} />
+              </View>
             )}
           </View>
 
@@ -393,8 +445,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
-    width: "90%",
-    maxHeight: "90%",
+    width: "95%",
+    maxHeight: "95%",
     backgroundColor: "#fff",
     padding: 20,
     borderRadius: 8,
@@ -428,39 +480,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
   },
-  tabContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginVertical: 10,
-  },
-  tab: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 5,
-    alignItems: "center",
-    backgroundColor: "#ddd",
-  },
-  activeTab: {
-    backgroundColor: "#bbb",
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  tabContent: {
-    marginVertical: 10,
-    alignItems: "center",
-  },
-  imagePreview: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  noImageText: {
-    color: "#888",
-    marginTop: 10,
-  },
   addBoxContainer: {
     marginVertical: 10,
   },
@@ -492,11 +511,63 @@ const styles = StyleSheet.create({
   selectedColor: {
     borderColor: "#000",
   },
+  customColorButton: {
+    backgroundColor: "#ddd",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  customColorText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#555",
+  },
+  colorPickerContainer: {
+    marginTop: 10,
+    alignItems: "center",
+  },
+  colorPicker: {
+    width: 300,
+    height: 300,
+  },
   switchContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginVertical: 10,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginVertical: 10,
+  },
+  tab: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 5,
+    alignItems: "center",
+    backgroundColor: "#ddd",
+    marginHorizontal: 5,
+  },
+  activeTab: {
+    backgroundColor: "#bbb",
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  tabContent: {
+    marginVertical: 10,
+    alignItems: "center",
+  },
+  imagePreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  noImageText: {
+    color: "#888",
+    marginTop: 10,
   },
   modalButtons: {
     flexDirection: "row",
@@ -514,12 +585,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     color: "#555",
-  },
-  connectionStatus: {
-    fontSize: 14,
-    color: "green", // Adjust dynamically if needed
-    textAlign: "center",
-    marginBottom: 10,
   },
 });
 

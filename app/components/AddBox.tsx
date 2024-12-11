@@ -1,4 +1,3 @@
-// AddBox.tsx
 import React, { useState } from "react";
 import { Text, StyleSheet, TouchableOpacity } from "react-native";
 import CreateBoxModal from "./CreateBoxModal";
@@ -11,7 +10,6 @@ interface AddBoxProps {
   deletedBoxes: BoxInfo[];
   onReAdd: (box: BoxInfo) => void;
   isFolderOpen: boolean;
-
 }
 
 const AddBox: React.FC<AddBoxProps> = ({
@@ -20,7 +18,7 @@ const AddBox: React.FC<AddBoxProps> = ({
   onAdd,
   deletedBoxes,
   onReAdd,
-  isFolderOpen
+  isFolderOpen,
 }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
 
@@ -33,7 +31,7 @@ const AddBox: React.FC<AddBoxProps> = ({
         ]}
         onPress={() => setIsModalVisible(true)}
       >
-        <Text style={styles.addBoxText}>+</Text>
+        <Text style={[styles.addBoxText, { fontSize: boxSize / 2 }]}>+</Text>
       </TouchableOpacity>
 
       <CreateBoxModal
@@ -61,7 +59,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   addBoxText: {
-    fontSize: 128,
     fontWeight: "bold",
     color: "#555",
   },

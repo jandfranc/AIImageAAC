@@ -11,20 +11,20 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Switch,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import ColorPicker, { HueSlider, Panel1, Preview } from "reanimated-color-picker"; // Correct named imports
 import { BoxInfo } from "../types";
 import Colors from "../design/Colors";
 import { useWebSocket } from "../provider/WebSocketProvider";
 import Toast from "react-native-toast-message";
-import { v4 as uuidv4 } from 'uuid'; // Ensure uuid is installed
+import { v4 as uuidv4 } from "uuid";
 
 interface EditBoxModalProps {
   isVisible: boolean;
   boxInfo: BoxInfo;
   onClose: () => void;
-  onSave: (text: string, color: string, image: string) => void;
+  onSave: (text: string, color: string, image?: string) => void; // Made image optional
 }
 
 interface GenerateImageResponse {
@@ -42,7 +42,7 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
   isVisible,
   onClose,
   onSave,
-  boxInfo
+  boxInfo,
 }) => {
   const [newBoxText, setNewBoxText] = useState<string>(boxInfo.text);
   const [selectedColor, setSelectedColor] = useState<string>(boxInfo.color);
@@ -50,20 +50,23 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
   const [selectedImage, setSelectedImage] = useState<string>(boxInfo.image);
   const [activeTab, setActiveTab] = useState<"upload" | "ai">("upload");
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null); // New state
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
+  const [colorWheelVisible, setColorWheelVisible] = useState<boolean>(false);
 
   const webSocketContext = useWebSocket();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastProcessedMessageRef = useRef<number>(0); // Track the last processed message index
+  const lastProcessedMessageRef = useRef<number>(0);
 
   if (!webSocketContext) {
-    // Optionally, render a loading indicator or disable functionalities
     return null;
   }
 
   const { messages, sendMessage, isConnected } = webSocketContext;
 
-  // Effect to handle incoming WebSocket messages for image generation
+  const predefinedColors = Object.values(Colors);
+  const isSelectedColorPredefined = predefinedColors.includes(selectedColor);
+
+  // Handle incoming WebSocket messages for image generation
   useEffect(() => {
     if (isGenerating && messages.length > lastProcessedMessageRef.current) {
       for (let i = lastProcessedMessageRef.current; i < messages.length; i++) {
@@ -73,13 +76,15 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
 
           // Validate requestId
           if (response.requestId !== currentRequestId) {
-            console.warn(`Received response for requestId ${response.requestId}, but currentRequestId is ${currentRequestId}. Ignoring.`);
-            continue; // Skip processing this message
+            console.warn(
+              `Received response for requestId ${response.requestId}, but currentRequestId is ${currentRequestId}. Ignoring.`
+            );
+            continue;
           }
 
-          if (response.data.imageUrls) {
+          if (response.data.imageUrls && response.data.imageUrls.length > 0) {
             setImages(response.data.imageUrls);
-            setSelectedImage(response.data.imageUrls[0] || "");
+            setSelectedImage(response.data.imageUrls[0]);
             setIsGenerating(false);
             Toast.show({
               type: "success",
@@ -98,7 +103,7 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
 
             // Update the last processed message index
             lastProcessedMessageRef.current = i + 1;
-            break; // Exit after processing the relevant message
+            break;
           } else if (response.data.error) {
             setIsGenerating(false);
             Toast.show({
@@ -118,7 +123,7 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
 
             // Update the last processed message index
             lastProcessedMessageRef.current = i + 1;
-            break; // Exit after processing the relevant message
+            break;
           }
         }
       }
@@ -165,7 +170,7 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
     sendMessage("GENERATE_IMAGE", message);
 
     setIsGenerating(true);
-    setCurrentRequestId(newRequestId); // Store the current requestId
+    setCurrentRequestId(newRequestId);
     Toast.show({
       type: "info",
       text1: "Generating Images",
@@ -174,7 +179,7 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
 
     // Start the timeout
     timeoutRef.current = setTimeout(() => {
-      if (currentRequestId === newRequestId) { // Ensure timeout corresponds to the current request
+      if (currentRequestId === newRequestId) {
         setIsGenerating(false);
         setCurrentRequestId(null);
         Toast.show({
@@ -187,16 +192,22 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
   };
 
   const handleSave = () => {
-    if (!selectedImage) {
+    // Allow saving even if no image is selected
+    // Ensure that either an image is selected or a color is chosen
+    if (!selectedImage && !selectedColor) {
       Toast.show({
         type: "error",
-        text1: "No Image Selected",
-        text2: "Please select or generate an image for the box.",
+        text1: "No Selection",
+        text2: "Please select a color or an image for the box.",
       });
       return;
     }
 
-    onSave(newBoxText.trim() || "New Box", selectedColor, selectedImage);
+    onSave(
+      newBoxText.trim() || "New Box",
+      selectedColor,
+      selectedImage || "" // Pass an empty string if no image is selected
+    );
     onClose();
 
     // Reset the last processed message index if needed
@@ -210,6 +221,11 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+  };
+
+  const handleColorChange = (color: { hex: string }) => {
+    setSelectedColor(color.hex);
+    // Removed setColorWheelVisible(false) to prevent auto-closing
   };
 
   // Cleanup on component unmount
@@ -231,7 +247,6 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
     >
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
-
           <Text style={styles.modalTitle}>Edit Box</Text>
 
           {/* Add Box Section */}
@@ -244,9 +259,10 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
             />
             <Text style={styles.label}>Select Color:</Text>
             <View style={styles.colorSelector}>
-              {Object.values(Colors).map((color: string) => (
+              {predefinedColors.map((color: string) => (
                 <TouchableOpacity
                   key={color}
+                  accessibilityLabel={`Select color ${color}`}
                   style={[
                     styles.colorOption,
                     { backgroundColor: color },
@@ -255,7 +271,43 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
                   onPress={() => setSelectedColor(color)}
                 />
               ))}
+
+              {!isSelectedColorPredefined && selectedColor && (
+                <TouchableOpacity
+                  accessibilityLabel={`Selected color ${selectedColor}`}
+                  style={[
+                    styles.colorOption,
+                    { backgroundColor: selectedColor },
+                    styles.selectedColor, // Highlight the selected color
+                  ]}
+                  onPress={() => {}}
+                />
+              )}
+
+              <TouchableOpacity
+                accessibilityLabel="Pick a custom color"
+                style={[styles.colorOption, styles.customColorButton]}
+                onPress={() => setColorWheelVisible(true)}
+              >
+                <Text style={styles.customColorText}>+</Text>
+              </TouchableOpacity>
             </View>
+            {colorWheelVisible && (
+              <View style={styles.colorPickerContainer}>
+                <ColorPicker
+                  value={selectedColor}
+                  onChange={handleColorChange}
+                  style={styles.colorPicker}
+                >
+                  <Panel1 />
+                  <HueSlider />
+                </ColorPicker>
+                <Button
+                  title="Done"
+                  onPress={() => setColorWheelVisible(false)} // Allows users to manually close the color picker
+                />
+              </View>
+            )}
           </View>
 
           {/* Tab Selector */}
@@ -279,14 +331,21 @@ const EditBoxModal: React.FC<EditBoxModalProps> = ({
             <View style={styles.tabContent}>
               <Button title="Pick an image" onPress={pickImage} />
               {selectedImage ? (
-                <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
+                <Image
+                  source={{ uri: selectedImage }}
+                  style={styles.imagePreview}
+                />
               ) : (
                 <Text style={styles.noImageText}>No image selected</Text>
               )}
             </View>
           ) : (
             <View style={styles.tabContent}>
-              <Button title={`Create pictures for "${newBoxText.trim() || "..."}`} onPress={generateAIImage} disabled={!isConnected || isGenerating} />
+              <Button
+                title={`Create pictures for "${newBoxText.trim() || "..."}`}
+                onPress={generateAIImage}
+                disabled={!isConnected || isGenerating}
+              />
               {isGenerating && (
                 <Text style={styles.loadingText}>Generating images...</Text>
               )}
@@ -339,8 +398,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
-    width: "90%",
-    maxHeight: "90%",
+    width: "95%",
+    maxHeight: "95%",
     backgroundColor: "#fff",
     padding: 20,
     borderRadius: 8,
@@ -382,6 +441,24 @@ const styles = StyleSheet.create({
   selectedColor: {
     borderColor: "#000",
   },
+  customColorButton: {
+    backgroundColor: "#ddd",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  customColorText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#555",
+  },
+  colorPickerContainer: {
+    marginTop: 10,
+    alignItems: "center",
+  },
+  colorPicker: {
+    width: 300,
+    height: 300,
+  },
   tabContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -393,6 +470,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     alignItems: "center",
     backgroundColor: "#ddd",
+    marginHorizontal: 5,
   },
   activeTab: {
     backgroundColor: "#bbb",
@@ -415,14 +493,6 @@ const styles = StyleSheet.create({
     color: "#888",
     marginTop: 10,
   },
-  selectedImage: {
-    borderWidth: 2,
-    borderColor: "#000",
-  },
-  loadingText: {
-    marginTop: 10,
-    color: "#555",
-  },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -431,6 +501,14 @@ const styles = StyleSheet.create({
   imageRow: {
     flexDirection: "row",
     marginTop: 10,
+  },
+  selectedImage: {
+    borderWidth: 2,
+    borderColor: "#000",
+  },
+  loadingText: {
+    marginTop: 10,
+    color: "#555",
   },
 });
 
